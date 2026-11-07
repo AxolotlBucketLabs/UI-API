@@ -1,0 +1,24 @@
+# Dependencies and build output
+/vendor/
+/out/
+*.phar
+
+# A library: consumers resolve their own versions.
+/composer.lock
+
+# Tool caches
+/.phpunit.cache/
+/.phpunit.result.cache
+/.phpstan-cache/
+/coverage/
+
+# Local overrides of the shipped .dist configs
+/phpstan.neon
+/phpunit.xml
+
+# Editors and OS
+/.idea/
+/.vscode/
+.DS_Store
+Thumbs.db
+*.log

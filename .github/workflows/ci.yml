@@ -1,0 +1,83 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  check:
+    name: ${{ matrix.server.name }}
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        server:
+          - name: Axolotl-PM 5.51.0
+            package: axolotl-pm/pocketmine-mp
+            version: 5.51.0
+            repo: axolotl-pm/PocketMine-MP
+            phpstan: phpstan.neon.dist
+          - name: PocketMine-MP 5.44.3
+            package: pocketmine/pocketmine-mp
+            version: 5.44.3
+            repo: pmmp/PocketMine-MP
+            phpstan: phpstan.pocketmine.neon
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out
+        uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262 # v4
+        with:
+          persist-credentials: false
+
+      - name: Set up PocketMine-MP 5 PHP
+        uses: axolotl-pm/setup-php-action@b8c3f9add4f2ad4a5e2624a1112aba899ee8db0e # 1.0.0
+        with:
+          php-version: '8.4'
+          install-path: ../bin
+          pm-version-major: '5'
+
+      - name: Validate composer.json
+        run: composer validate --strict --no-check-lock
+
+      - name: Swap in upstream PocketMine-MP
+        if: matrix.server.package != 'axolotl-pm/pocketmine-mp'
+        run: |
+          composer remove --dev --no-update axolotl-pm/pocketmine-mp
+          composer require --dev --no-update "${{ matrix.server.package }}:${{ matrix.server.version }}"
+
+      - name: Install dependencies
+        # Axolotl-PM declares ext-webrtc; nothing here needs it.
+        run: composer update --no-interaction --no-progress --prefer-dist --ignore-platform-req=ext-webrtc
+
+      - name: PHPStan
+        run: php vendor/phpstan/phpstan/phpstan analyse -c ${{ matrix.server.phpstan }} --memory-limit=1G --no-progress
+
+      - name: PHPUnit
+        run: php vendor/phpunit/phpunit/phpunit
+
+      - name: Build plugin
+        run: php -d phar.readonly=0 scripts/build.php
+
+      - name: Smoke test on a real server
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          mkdir -p ../server
+          gh release download "${{ matrix.server.version }}" --repo "${{ matrix.server.repo }}" --pattern PocketMine-MP.phar --dir ../server
+          php -d phar.readonly=0 scripts/smoke.php ../server/PocketMine-MP.phar
+
+      - name: Upload plugin
+        if: matrix.server.package == 'axolotl-pm/pocketmine-mp'
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
+        with:
+          name: nk-ui
+          path: out/nk-ui.phar
+          if-no-files-found: error

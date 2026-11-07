@@ -1,0 +1,14 @@
+name: nk-ui
+main: ninjaknights\ui\NkUi
+src-namespace-prefix: ninjaknights\ui
+version: 0.1.0
+api: 5.0.0
+load: STARTUP
+author: NinjaKnights
+website: https://github.com/ninjaknights/nk-ui-pmmp
+description: Forms, owned sidebars and boss bars for other plugins.
+
+permissions:
+  nkui.command:
+    description: Use /nkui (status, demo, clear)
+    default: op
