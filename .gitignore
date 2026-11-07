@@ -12,13 +12,14 @@
 /.phpstan-cache/
 /coverage/
 
-# PHPStan configs stay local
+# Personal development files, kept local only
 /phpstan.neon
 /phpstan.neon.dist
 /phpstan.pocketmine.neon
-
-# Local override of the shipped PHPUnit config
 /phpunit.xml
+/phpunit.xml.dist
+/tests/
+/scripts/
 
 # Editors and OS
 /.idea/
