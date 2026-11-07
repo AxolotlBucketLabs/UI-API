@@ -20,6 +20,8 @@
 /phpunit.xml.dist
 /tests/
 /scripts/
+/composer.dev.json
+/composer.dev.lock
 
 # Editors and OS
 /.idea/

@@ -3,7 +3,17 @@
 	"description": "Virion and Composer library: forms, shared sidebars and boss bars for PocketMine-MP 5 and Axolotl-PM plugins",
 	"type": "library",
 	"license": "GPL-3.0-only",
-	"keywords": ["pocketmine", "pmmp", "axolotl", "virion", "bedrock", "forms", "scoreboard", "sidebar", "bossbar"],
+	"keywords": [
+		"pocketmine",
+		"pmmp",
+		"axolotl",
+		"virion",
+		"bedrock",
+		"forms",
+		"scoreboard",
+		"sidebar",
+		"bossbar"
+	],
 	"homepage": "https://github.com/ninjaknights/nk-ui-pmmp",
 	"authors": [
 		{
@@ -13,32 +23,9 @@
 	"require": {
 		"php": "^8.1"
 	},
-	"require-dev": {
-		"axolotl-pm/pocketmine-mp": "5.51.0",
-		"phpstan/phpstan": "^2.1",
-		"phpstan/phpstan-strict-rules": "^2.0",
-		"phpunit/phpunit": "^10.5"
-	},
 	"autoload": {
 		"psr-4": {
 			"ninjaknights\\ui\\": "src/ninjaknights/ui/"
 		}
-	},
-	"autoload-dev": {
-		"psr-4": {
-			"ninjaknights\\ui\\tests\\": "tests/"
-		}
-	},
-	"scripts": {
-		"analyse": "@php vendor/phpstan/phpstan/phpstan analyse --memory-limit=1G",
-		"test": "@php vendor/phpunit/phpunit/phpunit",
-		"check": [
-			"@analyse",
-			"@test"
-		]
-	},
-	"config": {
-		"sort-packages": true,
-		"allow-plugins": {}
 	}
 }

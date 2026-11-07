@@ -193,36 +193,11 @@ Keys are your plugin's own: two plugins can both use `timer` without clashing. S
 shown at once. Bars are removed when the player quits or your plugin is disabled, and nk-ui
 answers the client's boss bar queries for you. Progress must be finite and between 0 and 1.
 
-## Development
+## Layout
 
-Requires PHP 8.1+ with the PocketMine-MP extensions (the `encoding` extension is needed to encode
-packets in tests).
-
-```sh
-composer install --ignore-platform-req=ext-webrtc   # Axolotl-PM declares ext-webrtc; nk-ui does not use it
-composer check     # PHPStan (level 10, strict rules) and PHPUnit, against Axolotl-PM 5.51.0
-php -d phar.readonly=0 scripts/smoke.php path/to/PocketMine-MP.phar
-```
-
-The smoke test boots a real server in a temporary folder with two test plugins, each with its own
-shaded copy of nk-ui, and checks that both load and that both copies share one sidebar host. It does not involve a Bedrock client. `tests/sidebar/ShadedCopiesTest.php` does the same
-in-process with a real player mock: a shaded copy and the original claim one sidebar together.
-
-To check against upstream PocketMine-MP instead of Axolotl-PM:
-
-```sh
-composer remove --dev --no-update axolotl-pm/pocketmine-mp
-composer require --dev --no-update pocketmine/pocketmine-mp:5.44.3
-composer update
-vendor/bin/phpstan analyse -c phpstan.pocketmine.neon
-vendor/bin/phpunit
-```
-
-Layout: `src/ninjaknights/ui/form`, `sidebar` and `bossbar` are the modules; each packet format
-difference between the two servers lives in that module's `protocol/` folder.
-`tests/ArchitectureTest.php` fails if a module starts using another,
-if the virion and Composer namespaces disagree, or if a string in `src` spells out the namespace
-(shading would not rename it).
+`src/ninjaknights/ui/form`, `sidebar` and `bossbar` are the modules; none uses another. Each packet
+format difference between the two servers lives in that module's `protocol/` folder. Requires PHP
+8.1 or newer.
 
 ## Known limits
 
