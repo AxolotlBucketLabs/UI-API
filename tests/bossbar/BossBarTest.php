@@ -7,18 +7,23 @@ namespace ninjaknights\ui\tests\bossbar;
 use ninjaknights\ui\bossbar\BarColor;
 use ninjaknights\ui\bossbar\BarOverlay;
 use ninjaknights\ui\bossbar\BossBar;
+use ninjaknights\ui\bossbar\BossBarListener;
 use ninjaknights\ui\bossbar\BossBarManager;
 use ninjaknights\ui\bossbar\protocol\AxolotlBossBarPackets;
 use ninjaknights\ui\bossbar\protocol\BossBarProtocol;
 use ninjaknights\ui\bossbar\protocol\PocketMineBossBarPackets;
 use ninjaknights\ui\tests\support\CreatesFakeClients;
+use ninjaknights\ui\tests\support\FakesServer;
 use PHPUnit\Framework\TestCase;
+use pocketmine\event\plugin\PluginDisableEvent;
 use pocketmine\network\mcpe\protocol\BossEventPacket;
+use pocketmine\plugin\Plugin;
 use pocketmine\network\mcpe\protocol\types\BossBarColor;
 
 final class BossBarTest extends TestCase
 {
     use CreatesFakeClients;
+    use FakesServer;
 
     public function testDetectsTheInstalledProtocol(): void
     {
@@ -38,7 +43,7 @@ final class BossBarTest extends TestCase
     public function testRejectsInvalidProgress(): void
     {
         $client = $this->fakeClient();
-        $bar = (new BossBarManager())->get($client->player, 'A');
+        $bar = (new BossBarManager($this->plugin()))->get($client->player, 'A');
         foreach ([-0.1, 1.1, NAN, INF, -INF] as $bad) {
             try {
                 BossBar::validateProgress($bad);
@@ -59,7 +64,7 @@ final class BossBarTest extends TestCase
     public function testShowUpdateAndHide(): void
     {
         $client = $this->fakeClient();
-        $bars = new BossBarManager();
+        $bars = new BossBarManager($this->plugin());
         $bar = $bars->get($client->player, 'timer');
         self::assertSame($bar, $bars->get($client->player, 'timer'));
 
@@ -86,7 +91,7 @@ final class BossBarTest extends TestCase
     public function testSeveralBarsAndQueryResend(): void
     {
         $client = $this->fakeClient();
-        $bars = new BossBarManager();
+        $bars = new BossBarManager($this->plugin());
         $a = $bars->get($client->player, 'A');
         $b = $bars->get($client->player, 'B');
         self::assertNotSame($a->id(), $b->id());
@@ -117,8 +122,8 @@ final class BossBarTest extends TestCase
     public function testPluginsHaveSeparateBarsAndCloseOnlyTheirOwn(): void
     {
         $client = $this->fakeClient();
-        $arenaPlugin = new BossBarManager();
-        $lobbyPlugin = new BossBarManager();
+        $arenaPlugin = new BossBarManager($this->plugin());
+        $lobbyPlugin = new BossBarManager($this->plugin());
         $arenaPlugin->get($client->player, 'timer')->show('Arena timer');
         $lobbyPlugin->get($client->player, 'timer')->show('Lobby timer');
         self::assertSame(['Arena timer', 'Lobby timer'], $client->visibleBossBars(), 'The same key in two plugins gives two bars');
@@ -132,7 +137,7 @@ final class BossBarTest extends TestCase
     {
         $client = $this->fakeClient();
         $other = $this->fakeClient();
-        $bars = new BossBarManager();
+        $bars = new BossBarManager($this->plugin());
         $bars->get($client->player, 'a')->show('A');
         $bars->get($client->player, 'b')->show('B');
         $bars->get($other->player, 'Lobby')->show('Lobby');
@@ -152,7 +157,7 @@ final class BossBarTest extends TestCase
     public function testDisconnectedPlayerGetsNoPackets(): void
     {
         $client = $this->fakeClient();
-        $bars = new BossBarManager();
+        $bars = new BossBarManager($this->plugin());
         $bar = $bars->get($client->player, 'A');
         $bar->show('A');
         $client->connected = false;
@@ -165,7 +170,25 @@ final class BossBarTest extends TestCase
     {
         $client = $this->fakeClient();
         $this->expectException(\InvalidArgumentException::class);
-        (new BossBarManager())->get($client->player, '');
+        (new BossBarManager($this->plugin()))->get($client->player, '');
+    }
+
+    public function testRegistersAListenerThatHidesOnlyItsOwnPluginsBars(): void
+    {
+        $client = $this->fakeClient();
+        $arena = $this->plugin('Arena');
+        $lobby = $this->plugin('Lobby');
+        (new BossBarManager($arena))->get($client->player, 'timer')->show('Arena timer');
+        (new BossBarManager($lobby))->get($client->player, 'timer')->show('Lobby timer');
+        self::assertSame([$arena, $lobby], array_map(static fn(array $l): Plugin => $l[1], $this->listeners));
+
+        foreach ($this->listeners as [$listener]) {
+            if ($listener instanceof BossBarListener) {
+                $listener->onPluginDisable(new PluginDisableEvent($arena));
+            }
+        }
+        self::assertSame(['Lobby timer'], $client->visibleBossBars());
+        self::assertCleanProtocol($client);
     }
 
     private static function protocolValue(mixed $value): mixed

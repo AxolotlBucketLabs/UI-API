@@ -6,15 +6,18 @@ namespace ninjaknights\ui\sidebar;
 
 use pocketmine\player\Player;
 use pocketmine\plugin\Plugin;
+use pocketmine\Server;
 
 /**
- * One plugin's access to the server-wide sidebar.
+ * One plugin's access to the server-wide sidebar. Create it in your onEnable():
+ *
+ *     $this->sidebars = new SidebarManager($this);
  *
  * Every plugin, whatever copy of nk-ui it bundles, claims from the same shared host
  * (see SidebarBus). A claim has an owner and a priority. The highest priority is
  * shown; on a tie the earlier claim keeps the sidebar. Releasing a claim shows the
- * next one again. releaseAll() (called for you when your plugin is disabled) drops
- * every claim this manager made.
+ * next one again. A player's claims go when they quit, and every claim this manager
+ * made goes when your plugin is disabled.
  */
 final class SidebarManager
 {
@@ -24,10 +27,15 @@ final class SidebarManager
     /** @var array<string, true> owners this manager has claimed with */
     private array $owners = [];
 
-    public function __construct(?SidebarBus $bus = null)
+    /**
+     * @param Plugin $plugin your plugin, which must be enabled; the cleanup listener is registered for it
+     * @param ?SidebarBus $bus the host to use; the server-wide shared one by default
+     */
+    public function __construct(Plugin $plugin, ?SidebarBus $bus = null)
     {
         $this->bus = $bus ?? SidebarBus::shared();
         $this->handles = new \WeakMap();
+        Server::getInstance()->getPluginManager()->registerEvents(new SidebarListener($this, $plugin), $plugin);
     }
 
     /**
@@ -72,7 +80,7 @@ final class SidebarManager
         return $claims;
     }
 
-    /** Releases every claim this manager made, for every player. */
+    /** Releases every claim this manager made, for every player. Runs on its own when your plugin is disabled. */
     public function releaseAll(): void
     {
         $owners = $this->owners;

@@ -6,9 +6,12 @@ namespace ninjaknights\ui\tests\sidebar;
 
 use ninjaknights\ui\sidebar\Sidebar;
 use ninjaknights\ui\sidebar\SidebarBus;
+use ninjaknights\ui\sidebar\SidebarListener;
 use ninjaknights\ui\sidebar\SidebarManager;
 use ninjaknights\ui\tests\support\CreatesFakeClients;
+use ninjaknights\ui\tests\support\FakesServer;
 use PHPUnit\Framework\TestCase;
+use pocketmine\event\plugin\PluginDisableEvent;
 use pocketmine\network\mcpe\protocol\SetDisplayObjectivePacket;
 use pocketmine\plugin\Plugin;
 
@@ -16,17 +19,18 @@ use pocketmine\plugin\Plugin;
 final class SidebarOwnershipTest extends TestCase
 {
     use CreatesFakeClients;
+    use FakesServer;
 
     /** @return array{SidebarManager, SidebarManager} a lobby plugin and an arena plugin sharing one bus */
-    private static function plugins(): array
+    private function plugins(): array
     {
         $bus = SidebarBus::isolated();
-        return [new SidebarManager($bus), new SidebarManager($bus)];
+        return [new SidebarManager($this->plugin("Lobby"), $bus), new SidebarManager($this->plugin("Arena"), $bus)];
     }
 
     public function testHigherPriorityTakesOverAndPreviousOwnerReturnsOnRelease(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
 
         $lobby = $lobbyPlugin->claim($client->player, 'Lobby', 0);
@@ -60,7 +64,7 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testLowerPriorityCannotOverwrite(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
         $arenaPlugin->claim($client->player, 'Arena', 10)->show('Match', ['Round 1']);
         $client->clearPackets();
@@ -75,7 +79,7 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testEqualPriorityKeepsTheEarlierClaim(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
         $first = $lobbyPlugin->claim($client->player, 'First');
         $first->show('First', ['a']);
@@ -89,7 +93,7 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testHiddenTopClaimStillOwnsTheSidebar(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
         $lobbyPlugin->claim($client->player, 'Lobby')->show('Lobby', ['x']);
         $cutscene = $arenaPlugin->claim($client->player, 'Cutscene', 50);
@@ -109,7 +113,7 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testClaimingAgainReturnsTheSameClaimAndChangesPriority(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
         $a = $lobbyPlugin->claim($client->player, 'A', 1);
         $a->show('A', ['a']);
@@ -128,7 +132,7 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testReleasedClaimIsInert(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
         $claim = $lobbyPlugin->claim($client->player, 'A');
         $claim->show('A', ['a']);
@@ -156,7 +160,7 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testReleaseAllDropsOnlyThatPluginsClaims(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
         $other = $this->fakeClient();
         $lobbyPlugin->claim($client->player, 'Lobby', 0)->show('Lobby', ['lobby']);
@@ -177,7 +181,7 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testClearRemovesEveryPluginsClaims(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
         $lobby = $lobbyPlugin->claim($client->player, 'Lobby');
         $lobby->show('Lobby', ['1']);
@@ -194,7 +198,7 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testDisconnectedPlayerGetsNoPackets(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
         $claim = $lobbyPlugin->claim($client->player, 'A');
         $claim->show('A', ['a']);
@@ -206,11 +210,33 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testPluginOwnerUsesThePluginName(): void
     {
-        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        [$lobbyPlugin, $arenaPlugin] = $this->plugins();
         $client = $this->fakeClient();
         $plugin = $this->createConfiguredMock(Plugin::class, ['getName' => 'Arena']);
         self::assertSame('Arena', $arenaPlugin->claim($client->player, $plugin)->owner());
         $this->expectException(\InvalidArgumentException::class);
         $arenaPlugin->claim($client->player, ' ');
+    }
+
+    public function testRegistersAListenerThatCleansUpOnlyItsOwnPlugin(): void
+    {
+        $client = $this->fakeClient();
+        $bus = SidebarBus::isolated();
+        $lobby = $this->plugin('Lobby');
+        $arena = $this->plugin('Arena');
+        $lobbyPlugin = new SidebarManager($lobby, $bus);
+        $arenaPlugin = new SidebarManager($arena, $bus);
+        self::assertCount(2, $this->listeners);
+        self::assertSame([$lobby, $arena], array_map(static fn(array $l): Plugin => $l[1], $this->listeners), 'Each listener belongs to its own plugin');
+
+        $lobbyPlugin->claim($client->player, 'Lobby')->show('Lobby', ['lobby']);
+        $arenaPlugin->claim($client->player, 'Arena', 10)->show('Arena', ['arena']);
+        foreach ($this->listeners as [$listener]) {
+            if ($listener instanceof SidebarListener) {
+                $listener->onPluginDisable(new PluginDisableEvent($arena));
+            }
+        }
+        self::assertSame(['title' => 'Lobby', 'lines' => ['lobby']], $client->sidebar(), 'Only the disabled plugin\'s claims went');
+        self::assertCleanProtocol($client);
     }
 }

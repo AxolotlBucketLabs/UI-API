@@ -11,8 +11,8 @@ It is not a plugin; you bundle it into yours.
   across plugins even though each one bundles its own copy of nk-ui.
 - **Boss bars**: any number of named bars per player, with progress, title, color and overlay.
 
-Each module is self-contained (no module uses another) and your plugin chooses which ones to
-enable, for example from its own `config.yml`.
+Each module is self-contained (no module uses another). There is nothing to configure or switch
+on: use the classes you need, and the rest stays idle.
 
 | Server | Version | Unit tests + PHPStan | Server boot smoke test | Bedrock client |
 | --- | --- | --- | --- | --- |
@@ -41,49 +41,37 @@ on Packagist yet, so add the repository:
 
 The server (PocketMine-MP or Axolotl-PM) is not a Composer requirement; it is provided at runtime.
 
-## Setup
+## Usage
 
-Call `NkUi::register()` once from your plugin's `onEnable()`:
+Forms need nothing: create them and send them. For sidebars and boss bars, create a manager in
+your plugin's `onEnable()`:
 
 ```php
-use ninjaknights\ui\{ModuleConfig, NkUi};
+use ninjaknights\ui\bossbar\BossBarManager;
+use ninjaknights\ui\sidebar\SidebarManager;
 use pocketmine\plugin\PluginBase;
 
 final class Main extends PluginBase
 {
-    private NkUi $ui;
+    private SidebarManager $sidebars;
+    private BossBarManager $bossBars;
 
     protected function onEnable(): void
     {
-        $this->saveDefaultConfig();
-        $this->ui = NkUi::register($this, ModuleConfig::fromArray($this->getConfig()->get('ui', [])));
+        $this->sidebars = new SidebarManager($this);
+        $this->bossBars = new BossBarManager($this);
     }
 }
 ```
 
-with, in your plugin's `resources/config.yml`:
-
-```yaml
-ui:
-  forms: true
-  sidebar: true
-  bossbar: false
-```
-
-Pass `null` (or nothing) to enable every module, or build it in code:
-`new ModuleConfig(forms: true, sidebar: true, bossBar: false)`. A missing entry counts as `true`;
-any other value, or an unknown module name, throws `InvalidArgumentException` naming the setting.
-
-`register()` creates only the enabled modules and registers only their listeners, owned by your
-plugin. Asking for a module you turned off throws `ninjaknights\ui\ModuleDisabledException`;
-`$ui->hasForms()`, `hasSidebars()` and `hasBossBars()` tell you what is on. When your plugin is
-disabled, its sidebar claims are released and its boss bars hidden automatically.
+A manager takes your plugin because PocketMine-MP only registers event listeners for a plugin.
+Each manager registers one listener for it: it clears a player's UI when they quit and, when your
+plugin is disabled, releases your sidebar claims or hides your boss bars. The boss bar listener
+also answers the client's boss bar queries. Create the managers once your plugin is enabled.
 
 ## Forms
 
-The form classes are ordinary `pocketmine\form\Form` objects: send them with `$player->sendForm()`,
-or with `$ui->forms()->send($player, $form)`, which skips players who have disconnected (useful in
-delayed tasks).
+The form classes are ordinary `pocketmine\form\Form` objects: send them with `$player->sendForm()`.
 
 ```php
 use ninjaknights\ui\form\{CustomForm, FormImage, ModalForm, SimpleForm};
@@ -131,15 +119,13 @@ booleans, inputs strings, sliders finite, in range and on a step. Anything else 
 ## Sidebar
 
 ```php
-$sidebars = $this->ui->sidebars();
-
 // A lobby plugin shows its sidebar at priority 0 ($this is the plugin, so the owner is its name).
-$lobby = $sidebars->claim($player, $this, 0);
+$lobby = $this->sidebars->claim($player, $this, 0);
 $lobby->show('Lobby', ['Players: 12', '', 'Coins: 340']);
 
-// Meanwhile an arena plugin, with its own NkUi ($arenaUi), claims at a higher priority
-// and covers the lobby sidebar.
-$match = $arenaUi->sidebars()->claim($player, 'Arena', 10);
+// Meanwhile an arena plugin, with its own SidebarManager ($arenaSidebars), claims at a
+// higher priority and covers the lobby sidebar.
+$match = $arenaSidebars->claim($player, 'Arena', 10);
 $match->show('Round 2', ['Red: 3', 'Blue: 1', 'Time: 2:41']);
 $match->setLine(2, 'Time: 2:40');   // only the changed line is sent
 
@@ -178,16 +164,14 @@ version; an incompatible change to it would use a new key.
 ```php
 use ninjaknights\ui\bossbar\{BarColor, BarOverlay};
 
-$bossBars = $this->ui->bossBars();
-
-$timer = $bossBars->get($player, 'timer');
+$timer = $this->bossBars->get($player, 'timer');
 $timer->show('Round ends in 3:00', 1.0, BarColor::GREEN, BarOverlay::NOTCHED_10);
 $timer->setProgress(0.5);           // 0.0 to 1.0
 $timer->setTitle('Round ends in 1:30');
 $timer->setStyle(BarColor::RED);    // overlay unchanged
 $timer->hide();                      // keep the bar for later show()
 
-$bossBars->remove($player, 'timer');
+$this->bossBars->remove($player, 'timer');
 ```
 
 Keys are your plugin's own: two plugins can both use `timer` without clashing. Several bars can be
@@ -206,8 +190,7 @@ php -d phar.readonly=0 scripts/smoke.php path/to/PocketMine-MP.phar
 ```
 
 The smoke test boots a real server in a temporary folder with two test plugins, each with its own
-shaded copy of nk-ui, and checks per-plugin module settings and that both copies share one sidebar
-host. It does not involve a Bedrock client. `tests/sidebar/ShadedCopiesTest.php` does the same
+shaded copy of nk-ui, and checks that both load and that both copies share one sidebar host. It does not involve a Bedrock client. `tests/sidebar/ShadedCopiesTest.php` does the same
 in-process with a real player mock: a shaded copy and the original claim one sidebar together.
 
 To check against upstream PocketMine-MP instead of Axolotl-PM:
@@ -221,8 +204,8 @@ vendor/bin/phpunit
 ```
 
 Layout: `src/ninjaknights/ui/form`, `sidebar` and `bossbar` are the modules; each packet format
-difference between the two servers lives in that module's `protocol/` folder. `NkUi.php` wires the
-enabled modules into a plugin. `tests/ArchitectureTest.php` fails if a module starts using another,
+difference between the two servers lives in that module's `protocol/` folder.
+`tests/ArchitectureTest.php` fails if a module starts using another,
 if the virion and Composer namespaces disagree, or if a string in `src` spells out the namespace
 (shading would not rename it).
 

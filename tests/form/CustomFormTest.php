@@ -5,7 +5,6 @@ declare(strict_types=1);
 namespace ninjaknights\ui\tests\form;
 
 use ninjaknights\ui\form\CustomForm;
-use ninjaknights\ui\form\FormModule;
 use ninjaknights\ui\tests\support\CreatesFakeClients;
 use PHPUnit\Framework\Attributes\DataProvider;
 use PHPUnit\Framework\TestCase;
@@ -112,19 +111,5 @@ final class CustomFormTest extends TestCase
                 ['type' => 'step_slider', 'text' => 'Size', 'steps' => ['S', 'L'], 'default' => 0],
             ],
         ], $json);
-    }
-
-    public function testFormModuleSkipsDisconnectedPlayers(): void
-    {
-        $client = $this->fakeClient();
-        $module = new FormModule();
-        $form = self::form();
-        self::assertTrue($module->send($client->player, $form));
-        $module->closeAll($client->player);
-        $client->connected = false;
-        self::assertFalse($module->send($client->player, $form));
-        $module->closeAll($client->player);
-        self::assertSame([$form], $client->forms);
-        self::assertSame(1, $client->formsClosed);
     }
 }

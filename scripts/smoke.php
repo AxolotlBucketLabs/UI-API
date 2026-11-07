@@ -10,8 +10,7 @@ declare(strict_types=1);
  *   php -d phar.readonly=0 scripts/smoke.php <path/to/PocketMine-MP.phar> [--php=<php binary>] [--port=19170]
  *
  * Checks:
- *   - both plugins enable, each with the modules from its own config.yml, and get a
- *     ModuleDisabledException for the modules it turned off;
+ *   - both plugins enable and use the parts they need (forms, sidebar, boss bars);
  *   - both shaded copies find the same sidebar host, so claims are shared;
  *   - the server stops cleanly, with no errors in the log.
  */
@@ -61,9 +60,9 @@ file_put_contents($data . '/server.properties', implode("\n", [
 // Without plugins.legacy-data-dir: false, the server would keep plugin data in the plugins folder.
 file_put_contents($data . '/pocketmine.yml', "plugins:\n  legacy-data-dir: false\nauto-updater:\n  enabled: false\nanonymous-statistics:\n  enabled: false\nplayer:\n  save-player-data: false\n");
 
-// Two plugins, each with its own shaded copy; the second turns two modules off.
-buildConsumer($root, $plugins . '/SmokeArena.phar', 'SmokeArena', 'smokearena', "ui:\n  forms: true\n  sidebar: true\n  bossbar: true\n");
-buildConsumer($root, $plugins . '/SmokeLobby.phar', 'SmokeLobby', 'smokelobby', "ui:\n  forms: true\n  sidebar: true\n  bossbar: false\n", 'SmokeArena');
+// Two plugins, each with its own shaded copy; only the first uses boss bars.
+buildConsumer($root, $plugins . '/SmokeArena.phar', 'SmokeArena', 'smokearena', true);
+buildConsumer($root, $plugins . '/SmokeLobby.phar', 'SmokeLobby', 'smokelobby', false, 'SmokeArena');
 
 $log = $work . '/server.log';
 $failures = [];
@@ -74,12 +73,13 @@ try {
             $failures[] = 'expected "' . $needle . '" in the log';
         }
     };
-    $expect('[SmokeArena] modules: forms ok, sidebar ok, bossbar ok');
-    $expect('[SmokeLobby] modules: forms ok, sidebar ok, bossbar disabled');
+    $expect('[SmokeArena] boss bars ready');
+    $expect('[SmokeArena] form buttons: 1');
+    $expect('[SmokeLobby] form buttons: 1');
     // The arena plugin enables first, so its shaded copy owns the host both use.
     $expect('[SmokeArena] sidebar host: smokearena\libs\ninjaknights\ui\sidebar\host\SidebarHost');
     $expect('[SmokeLobby] sidebar host: smokearena\libs\ninjaknights\ui\sidebar\host\SidebarHost');
-    $expect('[SmokeLobby] own copy: smokelobby\libs\ninjaknights\ui\NkUi');
+    $expect('[SmokeLobby] own copy: smokelobby\libs\ninjaknights\ui\sidebar\SidebarManager');
     foreach (['CRITICAL', 'EMERGENCY', 'Fatal error', 'Uncaught', 'Exception:', 'Error:'] as $bad) {
         if (str_contains($text, $bad)) {
             $failures[] = 'log contains "' . $bad . '"';
@@ -148,7 +148,7 @@ function runServer(string $php, string $serverPhar, string $data, string $plugin
  * A plugin with nk-ui shaded into it: the library's namespace becomes
  * "<namespace>\libs\ninjaknights\ui", as virion injection does.
  */
-function buildConsumer(string $root, string $path, string $name, string $namespace, string $config, ?string $loadAfter = null): void
+function buildConsumer(string $root, string $path, string $name, string $namespace, bool $withBossBars, ?string $loadAfter = null): void
 {
     $phar = new Phar($path);
     $phar->startBuffering();
@@ -162,7 +162,6 @@ function buildConsumer(string $root, string $path, string $name, string $namespa
         $loadAfter === null ? '' : 'depend: [' . $loadAfter . ']',
         '',
     ]));
-    $phar->addFromString('resources/config.yml', $config);
 
     $library = $namespace . '\libs\ninjaknights\ui';
     $source = $root . '/src/ninjaknights/ui';
@@ -180,34 +179,28 @@ function buildConsumer(string $root, string $path, string $name, string $namespa
         declare(strict_types=1);
         namespace __NS__;
 
-        use __LIB__\ModuleConfig;
-        use __LIB__\ModuleDisabledException;
-        use __LIB__\NkUi;
+        use __LIB__\bossbar\BossBarManager;
+        use __LIB__\form\SimpleForm;
+        use __LIB__\sidebar\SidebarManager;
         use pocketmine\plugin\PluginBase;
 
         final class Main extends PluginBase {
             protected function onEnable(): void {
-                $this->saveDefaultConfig();
-                $ui = NkUi::register($this, ModuleConfig::fromArray($this->getConfig()->get('ui')));
-                $result = [];
-                foreach (['forms' => fn() => $ui->forms(), 'sidebar' => fn() => $ui->sidebars(), 'bossbar' => fn() => $ui->bossBars()] as $module => $get) {
-                    try {
-                        $get();
-                        $result[] = $module . ' ok';
-                    } catch (ModuleDisabledException) {
-                        $result[] = $module . ' disabled';
-                    }
-                }
-                $this->getLogger()->info('modules: ' . implode(', ', $result));
+                new SidebarManager($this);
+                __BOSSBAR__
+                $form = (new SimpleForm('Menu'))->button('Play');
+                $this->getLogger()->info('form buttons: ' . $form->buttonCount());
                 $bus = $GLOBALS['nk-ui/sidebar/v1'] ?? null;
                 $host = is_array($bus) && ($bus['claim'] ?? null) instanceof \Closure
                     ? (new \ReflectionFunction($bus['claim']))->getClosureScopeClass()?->getName()
                     : null;
                 $this->getLogger()->info('sidebar host: ' . ($host ?? 'none'));
-                $this->getLogger()->info('own copy: ' . NkUi::class);
+                $this->getLogger()->info('own copy: ' . SidebarManager::class);
             }
         }
         PHP;
+    $bossBar = $withBossBars ? 'new BossBarManager($this); $this->getLogger()->info("boss bars ready");' : '';
+    $main = str_replace('__BOSSBAR__', $bossBar, $main);
     $phar->addFromString('src/Main.php', str_replace(['__NS__', '__LIB__'], [$namespace, $library], $main));
     $phar->stopBuffering();
 }

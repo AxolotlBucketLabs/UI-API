@@ -8,6 +8,7 @@ use ninjaknights\ui\sidebar\Sidebar;
 use ninjaknights\ui\sidebar\SidebarBus;
 use ninjaknights\ui\sidebar\SidebarManager;
 use ninjaknights\ui\tests\support\CreatesFakeClients;
+use ninjaknights\ui\tests\support\FakesServer;
 use PHPUnit\Framework\TestCase;
 
 /**
@@ -20,6 +21,7 @@ use PHPUnit\Framework\TestCase;
 final class ShadedCopiesTest extends TestCase
 {
     use CreatesFakeClients;
+    use FakesServer;
 
     private const SHADED_PREFIX = 'nkuishadetest\libs\ninjaknights\ui\\';
 
@@ -50,19 +52,9 @@ final class ShadedCopiesTest extends TestCase
         });
     }
 
-    protected function setUp(): void
-    {
-        unset($GLOBALS[SidebarBus::GLOBAL_KEY]);
-    }
-
-    protected function tearDown(): void
-    {
-        unset($GLOBALS[SidebarBus::GLOBAL_KEY]);
-    }
-
     public function testShadedCopyIsADifferentClass(): void
     {
-        $shaded = self::shadedManager();
+        $shaded = $this->shadedManager();
         self::assertNotInstanceOf(SidebarManager::class, $shaded);
         self::assertStringStartsWith(self::SHADED_PREFIX, $shaded::class);
     }
@@ -70,8 +62,8 @@ final class ShadedCopiesTest extends TestCase
     public function testShadedCopiesShareOneSidebar(): void
     {
         $client = $this->fakeClient();
-        $lobbyPlugin = new SidebarManager();      // plugin A, original namespace
-        $arenaPlugin = self::shadedManager();     // plugin B, its own shaded copy
+        $lobbyPlugin = new SidebarManager($this->plugin("Lobby"));      // plugin A, original namespace
+        $arenaPlugin = $this->shadedManager();     // plugin B, its own shaded copy
 
         $lobby = $lobbyPlugin->claim($client->player, 'Lobby', 0);
         $lobby->show('Lobby', ['Players: 4']);
@@ -95,8 +87,8 @@ final class ShadedCopiesTest extends TestCase
     public function testDisablingOnePluginReleasesOnlyItsClaims(): void
     {
         $client = $this->fakeClient();
-        $arenaPlugin = self::shadedManager();     // starts first: its copy creates the host
-        $lobbyPlugin = new SidebarManager();
+        $arenaPlugin = $this->shadedManager();     // starts first: its copy creates the host
+        $lobbyPlugin = new SidebarManager($this->plugin("Lobby"));
 
         $lobbyPlugin->claim($client->player, 'Lobby', 0)->show('Lobby', ['lobby']);
         $match = self::call($arenaPlugin, 'claim', $client->player, 'Arena', 10);
@@ -114,14 +106,14 @@ final class ShadedCopiesTest extends TestCase
     {
         $GLOBALS[SidebarBus::GLOBAL_KEY] = ['protocol' => 1, 'claim' => 'not a closure'];
         $this->expectException(\UnexpectedValueException::class);
-        new SidebarManager();
+        new SidebarManager($this->plugin());
     }
 
-    private static function shadedManager(): object
+    private function shadedManager(): object
     {
         $class = self::$prefix . 'sidebar\SidebarManager';
         self::assertTrue(class_exists($class), 'Shaded copy did not load');
-        return new $class();
+        return new $class($this->plugin('Arena'));
     }
 
     private static function call(object $object, string $method, mixed ...$args): mixed

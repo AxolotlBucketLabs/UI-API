@@ -7,11 +7,17 @@ namespace ninjaknights\ui\bossbar;
 use ninjaknights\ui\bossbar\protocol\BossBarPackets;
 use ninjaknights\ui\bossbar\protocol\BossBarProtocol;
 use pocketmine\player\Player;
+use pocketmine\plugin\Plugin;
+use pocketmine\Server;
 
 /**
- * One plugin's named boss bars per player. Several bars can be shown at once, and
- * bars of different plugins never clash. close() (called for you when your plugin is
- * disabled) hides every bar this manager created.
+ * One plugin's named boss bars per player. Create it in your onEnable():
+ *
+ *     $this->bossBars = new BossBarManager($this);
+ *
+ * Several bars can be shown at once, and bars of different plugins never clash. A
+ * player's bars go when they quit, and all of them are hidden when your plugin is
+ * disabled.
  */
 final class BossBarManager
 {
@@ -19,10 +25,12 @@ final class BossBarManager
     private \WeakMap $bars;
     private BossBarPackets $packets;
 
-    public function __construct(?BossBarPackets $packets = null)
+    /** @param Plugin $plugin your plugin, which must be enabled; the listener is registered for it */
+    public function __construct(Plugin $plugin, ?BossBarPackets $packets = null)
     {
         $this->packets = $packets ?? BossBarProtocol::detect();
         $this->bars = new \WeakMap();
+        Server::getInstance()->getPluginManager()->registerEvents(new BossBarListener($this, $plugin), $plugin);
     }
 
     /** Returns the player's bar with this key, creating a hidden one if needed. */
