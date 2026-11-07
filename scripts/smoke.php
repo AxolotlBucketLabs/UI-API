@@ -114,6 +114,12 @@ foreach ($scenarios as $name => [$config, $modules, $consumer]) {
     } catch (RuntimeException $e) {
         ++$failures;
         echo 'FAIL  ' . $e->getMessage() . "\n      log: $log\n";
+        foreach ([$log, $log . '.stderr'] as $file) {
+            $lines = array_slice(file(is_file($file) ? $file : 'php://memory', FILE_IGNORE_NEW_LINES) ?: [], -15);
+            foreach ($lines as $line) {
+                echo '      | ' . $line . "\n";
+            }
+        }
     }
 }
 echo $failures === 0 ? "Smoke test passed. Work folder: $work\n" : "$failures scenario(s) failed. Work folder: $work\n";
