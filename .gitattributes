@@ -5,6 +5,4 @@
 /tests export-ignore
 /.gitattributes export-ignore
 /.gitignore export-ignore
-/phpstan.neon.dist export-ignore
-/phpstan.pocketmine.neon export-ignore
 /phpunit.xml.dist export-ignore

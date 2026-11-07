@@ -12,8 +12,12 @@
 /.phpstan-cache/
 /coverage/
 
-# Local overrides of the shipped .dist configs
+# PHPStan configs stay local
 /phpstan.neon
+/phpstan.neon.dist
+/phpstan.pocketmine.neon
+
+# Local override of the shipped PHPUnit config
 /phpunit.xml
 
 # Editors and OS
