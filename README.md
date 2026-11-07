@@ -1,7 +1,5 @@
 # nk-ui
 
-[![CI](https://github.com/ninjaknights/nk-ui-pmmp/actions/workflows/ci.yml/badge.svg)](https://github.com/ninjaknights/nk-ui-pmmp/actions/workflows/ci.yml)
-
 Forms, shared sidebars and boss bars for [PocketMine-MP 5](https://github.com/pmmp/PocketMine-MP)
 and [Axolotl-PM](https://github.com/axolotl-pm/PocketMine-MP) plugins.
 
@@ -16,8 +14,8 @@ Each module is self-contained (no module uses another) and can be switched off i
 
 | Server | Version | Unit tests + PHPStan | Server boot smoke test | Bedrock client |
 | --- | --- | --- | --- | --- |
-| Axolotl-PM | 5.51.0 | yes (CI) | yes (local) | not yet tested |
-| PocketMine-MP | 5.44.3 | yes (CI) | yes (local) | not yet tested |
+| Axolotl-PM | 5.51.0 | yes | yes | not yet tested |
+| PocketMine-MP | 5.44.3 | yes | yes | not yet tested |
 
 Axolotl-PM and upstream PocketMine-MP encode score entries and boss bar colors differently.
 nk-ui detects the running server and uses the right packet format, so one `nk-ui.phar` works on both.
@@ -217,8 +215,6 @@ composer update
 vendor/bin/phpstan analyse -c phpstan.pocketmine.neon
 vendor/bin/phpunit
 ```
-
-CI runs PHPStan and PHPUnit on both servers for every push and pull request.
 
 Layout: `src/form`, `src/sidebar` and `src/bossbar` are the modules; each packet format difference
 between the two servers lives in that module's `protocol/` folder. `src/NkUi.php` wires the enabled

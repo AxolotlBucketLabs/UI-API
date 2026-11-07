@@ -1,5 +1,5 @@
 # Static analysis against upstream PocketMine-MP 5. Install it in place of Axolotl-PM
-# first (see .github/workflows/ci.yml), then run: vendor/bin/phpstan -c phpstan.pocketmine.neon
+# first (see "Development" in README.md), then run: vendor/bin/phpstan -c phpstan.pocketmine.neon
 includes:
 	- vendor/phpstan/phpstan-strict-rules/rules.neon
 

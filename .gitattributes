@@ -1,7 +1,6 @@
 * text=auto eol=lf
 
 # Not needed by consumers installing through Composer.
-/.github export-ignore
 /scripts export-ignore
 /tests export-ignore
 /.gitattributes export-ignore
