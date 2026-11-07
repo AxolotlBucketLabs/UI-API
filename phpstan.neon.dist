@@ -14,8 +14,8 @@ parameters:
 	excludePaths:
 		analyse:
 			# Written against upstream PocketMine-MP's protocol; analysed by phpstan.pocketmine.neon.
-			- src/sidebar/protocol/PocketMineScoreboardPackets.php
-			- src/bossbar/protocol/PocketMineBossBarPackets.php
+			- src/ninjaknights/ui/sidebar/protocol/PocketMineScoreboardPackets.php
+			- src/ninjaknights/ui/bossbar/protocol/PocketMineBossBarPackets.php
 	tmpDir: .phpstan-cache
 	treatPhpDocTypesAsCertain: false
 	checkMissingCallableSignature: true

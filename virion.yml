@@ -1,0 +1,7 @@
+name: nk-ui
+version: 0.1.0
+antigen: ninjaknights\ui
+api: [5.0.0]
+php: [8.1]
+authors: [NinjaKnights]
+description: Forms, shared sidebars and boss bars for PocketMine-MP 5 and Axolotl-PM plugins

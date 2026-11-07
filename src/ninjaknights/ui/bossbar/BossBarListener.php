@@ -6,11 +6,10 @@ namespace ninjaknights\ui\bossbar;
 
 use pocketmine\event\Listener;
 use pocketmine\event\player\PlayerQuitEvent;
-use pocketmine\event\plugin\PluginDisableEvent;
 use pocketmine\event\server\DataPacketReceiveEvent;
 use pocketmine\network\mcpe\protocol\BossEventPacket;
 
-/** Answers client boss bar queries and drops bars on quit or plugin disable. */
+/** Answers client boss bar queries and drops a player's bars when they leave. */
 final class BossBarListener implements Listener
 {
     public function __construct(private BossBarManager $bossBars)
@@ -20,11 +19,6 @@ final class BossBarListener implements Listener
     public function onQuit(PlayerQuitEvent $event): void
     {
         $this->bossBars->clear($event->getPlayer());
-    }
-
-    public function onPluginDisable(PluginDisableEvent $event): void
-    {
-        $this->bossBars->removePlugin($event->getPlugin());
     }
 
     public function onPacket(DataPacketReceiveEvent $event): void

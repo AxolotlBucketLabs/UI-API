@@ -4,29 +4,39 @@ declare(strict_types=1);
 
 namespace ninjaknights\ui\tests\sidebar;
 
+use ninjaknights\ui\sidebar\Sidebar;
+use ninjaknights\ui\sidebar\SidebarBus;
 use ninjaknights\ui\sidebar\SidebarManager;
 use ninjaknights\ui\tests\support\CreatesFakeClients;
 use PHPUnit\Framework\TestCase;
 use pocketmine\network\mcpe\protocol\SetDisplayObjectivePacket;
 use pocketmine\plugin\Plugin;
 
+/** Two managers on one bus stand for two plugins on one server. */
 final class SidebarOwnershipTest extends TestCase
 {
     use CreatesFakeClients;
 
+    /** @return array{SidebarManager, SidebarManager} a lobby plugin and an arena plugin sharing one bus */
+    private static function plugins(): array
+    {
+        $bus = SidebarBus::isolated();
+        return [new SidebarManager($bus), new SidebarManager($bus)];
+    }
+
     public function testHigherPriorityTakesOverAndPreviousOwnerReturnsOnRelease(): void
     {
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
         $client = $this->fakeClient();
-        $sidebars = new SidebarManager();
 
-        $lobby = $sidebars->claim($client->player, 'Lobby', 0);
+        $lobby = $lobbyPlugin->claim($client->player, 'Lobby', 0);
         $lobby->show('Lobby', ['Players: 4', 'Coins: 10']);
         self::assertSame(['title' => 'Lobby', 'lines' => ['Players: 4', 'Coins: 10']], $client->sidebar());
 
-        $match = $sidebars->claim($client->player, 'Match', 10);
+        $match = $arenaPlugin->claim($client->player, 'Arena', 10);
         $match->show('Match', ['Red: 3', 'Blue: 1']);
         self::assertSame(['title' => 'Match', 'lines' => ['Red: 3', 'Blue: 1']], $client->sidebar());
-        self::assertSame('Match', $sidebars->activeOwner($client->player));
+        self::assertSame('Arena', $lobbyPlugin->activeOwner($client->player), 'Every plugin sees the same owner');
         self::assertTrue($match->isActive());
         self::assertFalse($lobby->isActive());
 
@@ -34,27 +44,28 @@ final class SidebarOwnershipTest extends TestCase
         $client->clearPackets();
         $lobby->setLines(['Players: 5', 'Coins: 12']);
         self::assertSame([], $client->packets);
+        self::assertSame(['Players: 5', 'Coins: 12'], $lobby->lines());
         self::assertSame(['title' => 'Match', 'lines' => ['Red: 3', 'Blue: 1']], $client->sidebar());
 
         $match->release();
         self::assertTrue($match->isReleased());
         self::assertSame(['title' => 'Lobby', 'lines' => ['Players: 5', 'Coins: 12']], $client->sidebar());
-        self::assertSame('Lobby', $sidebars->activeOwner($client->player));
+        self::assertSame('Lobby', $arenaPlugin->activeOwner($client->player));
 
         $lobby->release();
         self::assertNull($client->sidebar());
-        self::assertNull($sidebars->activeOwner($client->player));
+        self::assertNull($lobbyPlugin->activeOwner($client->player));
         self::assertCleanProtocol($client);
     }
 
     public function testLowerPriorityCannotOverwrite(): void
     {
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
         $client = $this->fakeClient();
-        $sidebars = new SidebarManager();
-        $sidebars->claim($client->player, 'Match', 10)->show('Match', ['Round 1']);
+        $arenaPlugin->claim($client->player, 'Arena', 10)->show('Match', ['Round 1']);
         $client->clearPackets();
 
-        $late = $sidebars->claim($client->player, 'Lobby', 0);
+        $late = $lobbyPlugin->claim($client->player, 'Lobby', 0);
         $late->show('Lobby', ['Welcome']);
 
         self::assertSame([], $client->packets);
@@ -64,30 +75,30 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testEqualPriorityKeepsTheEarlierClaim(): void
     {
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
         $client = $this->fakeClient();
-        $sidebars = new SidebarManager();
-        $first = $sidebars->claim($client->player, 'First');
+        $first = $lobbyPlugin->claim($client->player, 'First');
         $first->show('First', ['a']);
-        $second = $sidebars->claim($client->player, 'Second');
-        $second->show('Second', ['b']);
+        $arenaPlugin->claim($client->player, 'Second')->show('Second', ['b']);
 
-        self::assertSame('First', $sidebars->activeOwner($client->player));
-        self::assertSame(['First', 'Second'], array_map(static fn($c) => $c->owner(), $sidebars->claims($client->player)));
+        self::assertSame('First', $arenaPlugin->activeOwner($client->player));
+        self::assertSame(['First', 'Second'], array_map(static fn(Sidebar $c): string => $c->owner(), $arenaPlugin->claims($client->player)));
         $first->release();
         self::assertSame(['title' => 'Second', 'lines' => ['b']], $client->sidebar());
     }
 
     public function testHiddenTopClaimStillOwnsTheSidebar(): void
     {
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
         $client = $this->fakeClient();
-        $sidebars = new SidebarManager();
-        $sidebars->claim($client->player, 'Lobby')->show('Lobby', ['x']);
-        $cutscene = $sidebars->claim($client->player, 'Cutscene', 50);
+        $lobbyPlugin->claim($client->player, 'Lobby')->show('Lobby', ['x']);
+        $cutscene = $arenaPlugin->claim($client->player, 'Cutscene', 50);
         $cutscene->show('Cutscene', ['y']);
         $cutscene->hide();
 
         self::assertNull($client->sidebar(), 'A hidden owner blanks the sidebar instead of revealing lower claims');
         self::assertTrue($cutscene->isActive());
+        self::assertFalse($cutscene->isVisible());
 
         $cutscene->show('Cutscene', ['z']);
         self::assertSame(['title' => 'Cutscene', 'lines' => ['z']], $client->sidebar());
@@ -98,27 +109,28 @@ final class SidebarOwnershipTest extends TestCase
 
     public function testClaimingAgainReturnsTheSameClaimAndChangesPriority(): void
     {
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
         $client = $this->fakeClient();
-        $sidebars = new SidebarManager();
-        $a = $sidebars->claim($client->player, 'A', 1);
+        $a = $lobbyPlugin->claim($client->player, 'A', 1);
         $a->show('A', ['a']);
-        $sidebars->claim($client->player, 'B', 5)->show('B', ['b']);
+        $arenaPlugin->claim($client->player, 'B', 5)->show('B', ['b']);
 
-        $again = $sidebars->claim($client->player, 'A', 9);
+        $again = $lobbyPlugin->claim($client->player, 'A', 9);
         self::assertSame($a, $again);
         self::assertSame(9, $a->priority());
         self::assertSame(['title' => 'A', 'lines' => ['a']], $client->sidebar());
 
         $a->setPriority(0);
         self::assertSame(['title' => 'B', 'lines' => ['b']], $client->sidebar());
+        self::assertSame($a, $lobbyPlugin->get($client->player, 'A'));
         self::assertCleanProtocol($client);
     }
 
     public function testReleasedClaimIsInert(): void
     {
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
         $client = $this->fakeClient();
-        $sidebars = new SidebarManager();
-        $claim = $sidebars->claim($client->player, 'A');
+        $claim = $lobbyPlugin->claim($client->player, 'A');
         $claim->show('A', ['a']);
         $claim->release();
         $client->clearPackets();
@@ -131,28 +143,31 @@ final class SidebarOwnershipTest extends TestCase
         $claim->release();
 
         self::assertSame([], $client->packets);
-        self::assertNull($sidebars->get($client->player, 'A'));
-        $fresh = $sidebars->claim($client->player, 'A');
+        self::assertSame(['a'], $claim->lines(), 'A released claim keeps its last known state');
+        self::assertNull($lobbyPlugin->get($client->player, 'A'));
+
+        // A new claim by the same owner is a different claim; the old handle stays released.
+        $fresh = $lobbyPlugin->claim($client->player, 'A');
         self::assertNotSame($claim, $fresh);
+        self::assertTrue($claim->isReleased());
+        $claim->show('Stale', ['must not show']);
+        self::assertSame([], $fresh->lines());
     }
 
-    public function testPluginDisableReleasesItsOwnersOnly(): void
+    public function testReleaseAllDropsOnlyThatPluginsClaims(): void
     {
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
         $client = $this->fakeClient();
         $other = $this->fakeClient();
-        $sidebars = new SidebarManager();
-        $plugin = $this->createConfiguredMock(Plugin::class, ['getName' => 'Arena']);
-
-        $sidebars->claim($client->player, 'Lobby', 0)->show('Lobby', ['lobby']);
-        $sidebars->claim($client->player, $plugin, 10)->show('Arena', ['arena']);
-        $sidebars->claim($client->player, 'Arena/alert', 20)->show('Alert', ['alert']);
-        $sidebars->claim($client->player, 'ArenaStats', 5)->show('Stats', ['stats']);
-        $sidebars->claim($other->player, 'Arena', 0)->show('Arena', ['other']);
+        $lobbyPlugin->claim($client->player, 'Lobby', 0)->show('Lobby', ['lobby']);
+        $arenaPlugin->claim($client->player, 'Arena', 10)->show('Arena', ['arena']);
+        $arenaPlugin->claim($client->player, 'Arena/alert', 20)->show('Alert', ['alert']);
+        $arenaPlugin->claim($other->player, 'Arena', 0)->show('Arena', ['other']);
         $client->clearPackets();
 
-        $sidebars->releasePlugin($plugin);
+        $arenaPlugin->releaseAll();
 
-        self::assertSame(['title' => 'Stats', 'lines' => ['stats']], $client->sidebar(), '"ArenaStats" is not owned by "Arena"');
+        self::assertSame(['title' => 'Lobby', 'lines' => ['lobby']], $client->sidebar());
         self::assertNull($other->sidebar());
         // One removal and one redraw: the intermediate "Arena" claim never flashed.
         self::assertCount(1, $client->packetsOf(SetDisplayObjectivePacket::class));
@@ -160,44 +175,42 @@ final class SidebarOwnershipTest extends TestCase
         self::assertCleanProtocol($other);
     }
 
-    public function testClearAndCloseRemoveEverything(): void
+    public function testClearRemovesEveryPluginsClaims(): void
     {
-        $a = $this->fakeClient();
-        $b = $this->fakeClient();
-        $sidebars = new SidebarManager();
-        $claimA = $sidebars->claim($a->player, 'X');
-        $claimA->show('X', ['1']);
-        $claimB = $sidebars->claim($b->player, 'X');
-        $claimB->show('X', ['2']);
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
+        $client = $this->fakeClient();
+        $lobby = $lobbyPlugin->claim($client->player, 'Lobby');
+        $lobby->show('Lobby', ['1']);
+        $arena = $arenaPlugin->claim($client->player, 'Arena', 5);
+        $arena->show('Arena', ['2']);
 
-        $sidebars->clear($a->player);
-        self::assertNull($a->sidebar());
-        self::assertTrue($claimA->isReleased());
-        self::assertSame([], $sidebars->claims($a->player));
-
-        $sidebars->close();
-        self::assertNull($b->sidebar());
-        self::assertTrue($claimB->isReleased());
-        self::assertCleanProtocol($a);
-        self::assertCleanProtocol($b);
+        $lobbyPlugin->clear($client->player);
+        self::assertNull($client->sidebar());
+        self::assertTrue($lobby->isReleased());
+        self::assertTrue($arena->isReleased());
+        self::assertSame([], $arenaPlugin->claims($client->player));
+        self::assertCleanProtocol($client);
     }
 
     public function testDisconnectedPlayerGetsNoPackets(): void
     {
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
         $client = $this->fakeClient();
-        $sidebars = new SidebarManager();
-        $claim = $sidebars->claim($client->player, 'A');
+        $claim = $lobbyPlugin->claim($client->player, 'A');
         $claim->show('A', ['a']);
         $client->connected = false;
         $claim->setLines(['b']);
-        $sidebars->clear($client->player);
+        $lobbyPlugin->clear($client->player);
         self::assertCleanProtocol($client);
     }
 
-    public function testRejectsEmptyOwner(): void
+    public function testPluginOwnerUsesThePluginName(): void
     {
+        [$lobbyPlugin, $arenaPlugin] = self::plugins();
         $client = $this->fakeClient();
+        $plugin = $this->createConfiguredMock(Plugin::class, ['getName' => 'Arena']);
+        self::assertSame('Arena', $arenaPlugin->claim($client->player, $plugin)->owner());
         $this->expectException(\InvalidArgumentException::class);
-        (new SidebarManager())->claim($client->player, ' ');
+        $arenaPlugin->claim($client->player, ' ');
     }
 }

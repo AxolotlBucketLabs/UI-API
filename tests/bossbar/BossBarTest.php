@@ -15,7 +15,6 @@ use ninjaknights\ui\tests\support\CreatesFakeClients;
 use PHPUnit\Framework\TestCase;
 use pocketmine\network\mcpe\protocol\BossEventPacket;
 use pocketmine\network\mcpe\protocol\types\BossBarColor;
-use pocketmine\plugin\Plugin;
 
 final class BossBarTest extends TestCase
 {
@@ -61,8 +60,8 @@ final class BossBarTest extends TestCase
     {
         $client = $this->fakeClient();
         $bars = new BossBarManager();
-        $bar = $bars->get($client->player, 'Arena/timer');
-        self::assertSame($bar, $bars->get($client->player, 'Arena/timer'));
+        $bar = $bars->get($client->player, 'timer');
+        self::assertSame($bar, $bars->get($client->player, 'timer'));
 
         $bar->setTitle('Stored while hidden');
         self::assertSame([], $client->packets, 'Hidden bars send nothing');
@@ -115,23 +114,29 @@ final class BossBarTest extends TestCase
         self::assertCleanProtocol($client);
     }
 
-    public function testPluginDisableClearAndClose(): void
+    public function testPluginsHaveSeparateBarsAndCloseOnlyTheirOwn(): void
+    {
+        $client = $this->fakeClient();
+        $arenaPlugin = new BossBarManager();
+        $lobbyPlugin = new BossBarManager();
+        $arenaPlugin->get($client->player, 'timer')->show('Arena timer');
+        $lobbyPlugin->get($client->player, 'timer')->show('Lobby timer');
+        self::assertSame(['Arena timer', 'Lobby timer'], $client->visibleBossBars(), 'The same key in two plugins gives two bars');
+
+        $arenaPlugin->close();
+        self::assertSame(['Lobby timer'], $client->visibleBossBars());
+        self::assertCleanProtocol($client);
+    }
+
+    public function testClearAndClose(): void
     {
         $client = $this->fakeClient();
         $other = $this->fakeClient();
         $bars = new BossBarManager();
-        $plugin = $this->createConfiguredMock(Plugin::class, ['getName' => 'Arena']);
-        $bars->get($client->player, $plugin)->show('Arena');
-        $bars->get($client->player, 'Arena/timer')->show('Timer');
-        $bars->get($client->player, 'ArenaStats')->show('Stats');
-        $bars->get($other->player, 'Arena')->show('Other');
-
-        $bars->removePlugin($plugin);
-        self::assertSame(['Stats'], $client->visibleBossBars());
-        self::assertSame([], $other->visibleBossBars());
-        self::assertSame(['ArenaStats'], array_keys($bars->all($client->player)));
-
+        $bars->get($client->player, 'a')->show('A');
+        $bars->get($client->player, 'b')->show('B');
         $bars->get($other->player, 'Lobby')->show('Lobby');
+
         $bars->clear($client->player);
         self::assertSame([], $client->visibleBossBars());
         self::assertSame([], $bars->all($client->player));

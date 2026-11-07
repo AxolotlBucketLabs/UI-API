@@ -4,7 +4,17 @@ declare(strict_types=1);
 
 namespace ninjaknights\ui;
 
-/** The "modules" section of config.yml. Missing entries default to enabled. */
+/**
+ * Which nk-ui modules a plugin uses. Build it in code, or read it from your plugin's
+ * config.yml with fromArray(), e.g. a section like:
+ *
+ *     ui:
+ *       forms: true
+ *       sidebar: true
+ *       bossbar: false
+ *
+ * Missing entries default to enabled.
+ */
 final class ModuleConfig
 {
     public const FORMS = 'forms';
@@ -20,18 +30,17 @@ final class ModuleConfig
     }
 
     /**
-     * @param array<mixed> $config the whole parsed config.yml
+     * @param mixed $modules a map of module name => true/false, as parsed from YAML
      * @throws \InvalidArgumentException naming the bad setting
      */
-    public static function fromArray(array $config): self
+    public static function fromArray(mixed $modules): self
     {
-        $modules = $config['modules'] ?? [];
         if (!is_array($modules)) {
-            throw new \InvalidArgumentException('"modules" must map module names to true or false');
+            throw new \InvalidArgumentException('nk-ui modules must map module names to true or false');
         }
         foreach (array_keys($modules) as $name) {
             if (!in_array($name, self::MODULES, true)) {
-                throw new \InvalidArgumentException('Unknown module "' . $name . '"; expected ' . implode(', ', self::MODULES));
+                throw new \InvalidArgumentException('Unknown nk-ui module "' . $name . '"; expected ' . implode(', ', self::MODULES));
             }
         }
         return new self(
@@ -52,7 +61,7 @@ final class ModuleConfig
     {
         $value = $modules[$name] ?? true;
         if (!is_bool($value)) {
-            throw new \InvalidArgumentException('modules.' . $name . ' must be true or false');
+            throw new \InvalidArgumentException('nk-ui module "' . $name . '" must be true or false');
         }
         return $value;
     }

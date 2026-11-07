@@ -1,9 +1,9 @@
 {
 	"name": "ninjaknights/nk-ui-pmmp",
-	"description": "Forms, owned sidebars and boss bars for PocketMine-MP 5 and Axolotl-PM plugins",
+	"description": "Virion and Composer library: forms, shared sidebars and boss bars for PocketMine-MP 5 and Axolotl-PM plugins",
 	"type": "library",
 	"license": "GPL-3.0-only",
-	"keywords": ["pocketmine", "pmmp", "axolotl", "bedrock", "forms", "scoreboard", "sidebar", "bossbar"],
+	"keywords": ["pocketmine", "pmmp", "axolotl", "virion", "bedrock", "forms", "scoreboard", "sidebar", "bossbar"],
 	"homepage": "https://github.com/ninjaknights/nk-ui-pmmp",
 	"authors": [
 		{
@@ -21,7 +21,7 @@
 	},
 	"autoload": {
 		"psr-4": {
-			"ninjaknights\\ui\\": "src/"
+			"ninjaknights\\ui\\": "src/ninjaknights/ui/"
 		}
 	},
 	"autoload-dev": {

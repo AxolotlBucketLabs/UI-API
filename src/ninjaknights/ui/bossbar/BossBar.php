@@ -14,8 +14,8 @@ use pocketmine\player\Player;
  * One named boss bar for one player. Get it from BossBarManager::get().
  *
  * Changes made while hidden are stored and sent by the next show(). Once removed
- * (by the manager, on quit, or when the owning plugin is disabled) the bar is inert
- * and every change is ignored.
+ * (by the manager, on quit, or when your plugin is disabled) the bar is inert and
+ * every change is ignored.
  */
 final class BossBar
 {

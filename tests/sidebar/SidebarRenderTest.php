@@ -8,6 +8,7 @@ use ninjaknights\ui\sidebar\protocol\AxolotlScoreboardPackets;
 use ninjaknights\ui\sidebar\protocol\PocketMineScoreboardPackets;
 use ninjaknights\ui\sidebar\protocol\ScoreboardProtocol;
 use ninjaknights\ui\sidebar\Sidebar;
+use ninjaknights\ui\sidebar\SidebarBus;
 use ninjaknights\ui\sidebar\SidebarManager;
 use ninjaknights\ui\tests\support\CreatesFakeClients;
 use PHPUnit\Framework\TestCase;
@@ -33,7 +34,7 @@ final class SidebarRenderTest extends TestCase
             self::markTestSkipped('Packet encoding needs the encoding extension shipped with PocketMine-MP PHP builds');
         }
         $client = $this->fakeClient();
-        $claim = (new SidebarManager())->claim($client->player, 'A');
+        $claim = (new SidebarManager(SidebarBus::isolated()))->claim($client->player, 'A');
         $claim->show('Title', ['', '', 'Score']);
         $claim->setLines(['changed']);
         $claim->release();
@@ -45,14 +46,14 @@ final class SidebarRenderTest extends TestCase
     public function testBlankAndRepeatedLinesStayDistinctAndOrdered(): void
     {
         $client = $this->fakeClient();
-        (new SidebarManager())->claim($client->player, 'A')->show('Title', ['', 'Same', '', 'Same', '']);
+        (new SidebarManager(SidebarBus::isolated()))->claim($client->player, 'A')->show('Title', ['', 'Same', '', 'Same', '']);
         self::assertSame(['title' => 'Title', 'lines' => ['', 'Same', '', 'Same', '']], $client->sidebar());
     }
 
     public function testLineChangesAreSentAsADiff(): void
     {
         $client = $this->fakeClient();
-        $claim = (new SidebarManager())->claim($client->player, 'A');
+        $claim = (new SidebarManager(SidebarBus::isolated()))->claim($client->player, 'A');
         $claim->show('Score', ['Red: 1', 'Blue: 1', 'Time: 3:00']);
         $client->clearPackets();
 
@@ -78,7 +79,7 @@ final class SidebarRenderTest extends TestCase
     public function testTitleChangeRedraws(): void
     {
         $client = $this->fakeClient();
-        $claim = (new SidebarManager())->claim($client->player, 'A');
+        $claim = (new SidebarManager(SidebarBus::isolated()))->claim($client->player, 'A');
         $claim->show('Old', ['a', 'b']);
         $claim->setTitle('New');
         self::assertSame(['title' => 'New', 'lines' => ['a', 'b']], $client->sidebar());
@@ -89,7 +90,7 @@ final class SidebarRenderTest extends TestCase
     public function testFifteenLineLimitAndValidation(): void
     {
         $client = $this->fakeClient();
-        $claim = (new SidebarManager())->claim($client->player, 'A');
+        $claim = (new SidebarManager(SidebarBus::isolated()))->claim($client->player, 'A');
         $max = array_map(static fn(int $i): string => 'Line ' . $i, range(1, Sidebar::MAX_LINES));
         $claim->show('Max', $max);
         self::assertSame($max, $client->sidebar()['lines'] ?? null);

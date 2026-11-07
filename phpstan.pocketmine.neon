@@ -14,8 +14,8 @@ parameters:
 	excludePaths:
 		analyse:
 			# Written against Axolotl-PM's protocol; analysed by phpstan.neon.dist.
-			- src/sidebar/protocol/AxolotlScoreboardPackets.php
-			- src/bossbar/protocol/AxolotlBossBarPackets.php
+			- src/ninjaknights/ui/sidebar/protocol/AxolotlScoreboardPackets.php
+			- src/ninjaknights/ui/bossbar/protocol/AxolotlBossBarPackets.php
 	tmpDir: .phpstan-cache/pocketmine
 	treatPhpDocTypesAsCertain: false
 	checkMissingCallableSignature: true

@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace ninjaknights\ui\sidebar;
 
+use pocketmine\player\Player;
+
 /**
  * One owner's claim on one player's sidebar. Get it from SidebarManager::claim().
  *
@@ -18,19 +20,18 @@ final class Sidebar
 {
     public const MAX_LINES = 15;
 
-    private string $title = '';
-    /** @var list<string> */
-    private array $lines = [];
-    private bool $visible = false;
-    private bool $released = false;
+    /** @var array{id: int, priority: int, title: string, lines: list<string>, visible: bool} */
+    private array $last;
 
     /** @internal Use SidebarManager::claim(). */
     public function __construct(
-        private SidebarStack $stack,
+        private SidebarBus $bus,
+        private Player $player,
         private string $owner,
-        private int $priority,
-        private int $order,
+        private int $id,
     ) {
+        $this->last = ['id' => $id, 'priority' => 0, 'title' => '', 'lines' => [], 'visible' => false];
+        $this->state();
     }
 
     public function owner(): string
@@ -38,79 +39,73 @@ final class Sidebar
         return $this->owner;
     }
 
+    /** @internal Identifies this claim; a new claim by the same owner gets a new id. */
+    public function id(): int
+    {
+        return $this->id;
+    }
+
     public function priority(): int
     {
-        return $this->priority;
+        return $this->state()['priority'];
     }
 
     public function title(): string
     {
-        return $this->title;
+        return $this->state()['title'];
     }
 
     /** @return list<string> */
     public function lines(): array
     {
-        return $this->lines;
+        return $this->state()['lines'];
     }
 
     /** Whether this claim has content to show (show() was called and hide() was not). */
     public function isVisible(): bool
     {
-        return $this->visible;
+        return $this->state()['visible'];
     }
 
     /** Whether this claim currently owns the player's sidebar. */
     public function isActive(): bool
     {
-        return !$this->released && $this->stack->top() === $this;
+        return !$this->isReleased() && ($this->bus->owners($this->player)[0] ?? null) === $this->owner;
     }
 
     public function isReleased(): bool
     {
-        return $this->released;
+        return $this->current() === null;
     }
 
     /** @param list<string> $lines up to 15 lines; blank and repeated lines are allowed */
     public function show(string $title, array $lines): void
     {
-        if ($this->released) {
-            return;
-        }
         self::validateLines($lines);
-        $this->title = $title;
-        $this->lines = $lines;
-        $this->visible = true;
-        $this->stack->refresh();
+        $this->write($title, $lines, true);
     }
 
     public function setTitle(string $title): void
     {
-        if ($this->released) {
-            return;
-        }
-        $this->title = $title;
-        $this->stack->refresh();
+        $state = $this->state();
+        $this->write($title, $state['lines'], $state['visible']);
     }
 
     /** @param list<string> $lines */
     public function setLines(array $lines): void
     {
-        if ($this->released) {
-            return;
-        }
         self::validateLines($lines);
-        $this->lines = $lines;
-        $this->stack->refresh();
+        $state = $this->state();
+        $this->write($state['title'], $lines, $state['visible']);
     }
 
     /** Replaces line $index, or appends when $index equals the current line count. */
     public function setLine(int $index, string $text): void
     {
-        if ($index < 0 || $index > count($this->lines)) {
-            throw new \OutOfRangeException('Line index ' . $index . ' is outside 0..' . count($this->lines));
+        $lines = $this->lines();
+        if ($index < 0 || $index > count($lines)) {
+            throw new \OutOfRangeException('Line index ' . $index . ' is outside 0..' . count($lines));
         }
-        $lines = $this->lines;
         $lines[$index] = $text;
         $this->setLines(array_values($lines));
     }
@@ -121,40 +116,21 @@ final class Sidebar
      */
     public function hide(): void
     {
-        if ($this->released) {
-            return;
-        }
-        $this->visible = false;
-        $this->stack->refresh();
+        $state = $this->state();
+        $this->write($state['title'], $state['lines'], false);
     }
 
     public function setPriority(int $priority): void
     {
-        if ($this->released) {
-            return;
+        if ($this->bus->setPriority($this->player, $this->owner, $this->id, $priority)) {
+            $this->state();
         }
-        $this->priority = $priority;
-        $this->stack->refresh();
     }
 
     /** Gives up the claim. The next claim in priority order is shown, if any. */
     public function release(): void
     {
-        if (!$this->released) {
-            $this->stack->release($this->owner);
-        }
-    }
-
-    /** @internal */
-    public function order(): int
-    {
-        return $this->order;
-    }
-
-    /** @internal Called by SidebarStack when the claim is removed. */
-    public function markReleased(): void
-    {
-        $this->released = true;
+        $this->bus->release($this->player, $this->owner, $this->id);
     }
 
     /** @param array<mixed> $lines */
@@ -171,5 +147,30 @@ final class Sidebar
                 throw new \InvalidArgumentException('Sidebar line ' . $i . ' must not contain a line break');
             }
         }
+    }
+
+    /** @param list<string> $lines */
+    private function write(string $title, array $lines, bool $visible): void
+    {
+        if ($this->bus->update($this->player, $this->owner, $this->id, $title, $lines, $visible)) {
+            $this->state();
+        }
+    }
+
+    /** @return ?array{id: int, priority: int, title: string, lines: list<string>, visible: bool} */
+    private function current(): ?array
+    {
+        $state = $this->bus->get($this->player, $this->owner);
+        return $state !== null && $state['id'] === $this->id ? $state : null;
+    }
+
+    /**
+     * The claim's state, or the last known state once released.
+     *
+     * @return array{id: int, priority: int, title: string, lines: list<string>, visible: bool}
+     */
+    private function state(): array
+    {
+        return $this->last = $this->current() ?? $this->last;
     }
 }

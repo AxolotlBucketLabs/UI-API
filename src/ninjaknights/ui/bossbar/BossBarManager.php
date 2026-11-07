@@ -7,13 +7,11 @@ namespace ninjaknights\ui\bossbar;
 use ninjaknights\ui\bossbar\protocol\BossBarPackets;
 use ninjaknights\ui\bossbar\protocol\BossBarProtocol;
 use pocketmine\player\Player;
-use pocketmine\plugin\Plugin;
 
 /**
- * Named boss bars per player. Several bars can be shown at once.
- *
- * Keys are a plugin name, or "PluginName/suffix" for several bars. When a plugin is
- * disabled, the bars keyed by its name or "name/..." are removed automatically.
+ * One plugin's named boss bars per player. Several bars can be shown at once, and
+ * bars of different plugins never clash. close() (called for you when your plugin is
+ * disabled) hides every bar this manager created.
  */
 final class BossBarManager
 {
@@ -28,9 +26,9 @@ final class BossBarManager
     }
 
     /** Returns the player's bar with this key, creating a hidden one if needed. */
-    public function get(Player $player, Plugin|string $key): BossBar
+    public function get(Player $player, string $key): BossBar
     {
-        $key = self::keyName($key);
+        self::validateKey($key);
         $bars = $this->bars[$player] ?? [];
         $bar = $bars[$key] ?? null;
         if ($bar === null) {
@@ -41,9 +39,9 @@ final class BossBarManager
         return $bar;
     }
 
-    public function has(Player $player, Plugin|string $key): bool
+    public function has(Player $player, string $key): bool
     {
-        return isset(($this->bars[$player] ?? [])[self::keyName($key)]);
+        return isset(($this->bars[$player] ?? [])[$key]);
     }
 
     /** @return array<string, BossBar> */
@@ -53,31 +51,13 @@ final class BossBarManager
     }
 
     /** Hides and forgets one bar. */
-    public function remove(Player $player, Plugin|string $key): void
+    public function remove(Player $player, string $key): void
     {
-        $key = self::keyName($key);
         $bars = $this->bars[$player] ?? [];
         if (isset($bars[$key])) {
             $bars[$key]->markRemoved();
             unset($bars[$key]);
             $this->bars[$player] = $bars;
-        }
-    }
-
-    /** Removes a plugin's bars for every player: its name and "name/..." keys. */
-    public function removePlugin(Plugin|string $plugin): void
-    {
-        $name = self::keyName($plugin);
-        $players = [];
-        foreach ($this->bars as $player => $bars) {
-            $players[] = $player;
-        }
-        foreach ($players as $player) {
-            foreach ($this->all($player) as $key => $bar) {
-                if ($key === $name || str_starts_with($key, $name . '/')) {
-                    $this->remove($player, $key);
-                }
-            }
         }
     }
 
@@ -111,12 +91,10 @@ final class BossBarManager
         $this->bars = new \WeakMap();
     }
 
-    public static function keyName(Plugin|string $key): string
+    private static function validateKey(string $key): void
     {
-        $name = $key instanceof Plugin ? $key->getName() : $key;
-        if (trim($name) === '') {
+        if (trim($key) === '') {
             throw new \InvalidArgumentException('Boss bar key must not be empty');
         }
-        return $name;
     }
 }

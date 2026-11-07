@@ -2,7 +2,7 @@
 
 declare(strict_types=1);
 
-namespace ninjaknights\ui\sidebar;
+namespace ninjaknights\ui\sidebar\host;
 
 use ninjaknights\ui\sidebar\protocol\ScoreboardPackets;
 use pocketmine\entity\Entity;
@@ -18,13 +18,12 @@ use pocketmine\player\Player;
  * Only that claim's content is sent. Line changes are sent as a diff, so updating
  * a score does not redraw the whole sidebar.
  */
-final class SidebarStack
+final class ClaimStack
 {
-    /** @var array<string, Sidebar> */
+    /** @var array<string, ClaimState> */
     private array $claims = [];
-    private int $nextOrder = 0;
 
-    private ?Sidebar $rendered = null;
+    private ?ClaimState $rendered = null;
     private ?string $objective = null;
     private string $renderedTitle = '';
     /** @var list<array{int, int, string}> scoreboard id, score, text per line */
@@ -34,35 +33,27 @@ final class SidebarStack
     {
     }
 
-    public function claim(string $owner, int $priority): Sidebar
-    {
-        $claim = $this->claims[$owner] ?? null;
-        if ($claim !== null) {
-            $claim->setPriority($priority);
-            return $claim;
-        }
-        $claim = new Sidebar($this, $owner, $priority, $this->nextOrder++);
-        $this->claims[$owner] = $claim;
-        $this->refresh();
-        return $claim;
-    }
-
-    public function get(string $owner): ?Sidebar
+    public function get(string $owner): ?ClaimState
     {
         return $this->claims[$owner] ?? null;
     }
 
-    /** @return list<Sidebar> claims, highest priority first */
-    public function claims(): array
+    public function add(ClaimState $claim): void
+    {
+        $this->claims[$claim->owner] = $claim;
+    }
+
+    /** @return list<ClaimState> highest priority first, ties in claim order */
+    public function ordered(): array
     {
         $claims = array_values($this->claims);
-        usort($claims, static fn(Sidebar $a, Sidebar $b): int => [$b->priority(), $a->order()] <=> [$a->priority(), $b->order()]);
+        usort($claims, static fn(ClaimState $a, ClaimState $b): int => [$b->priority, $a->order] <=> [$a->priority, $b->order]);
         return $claims;
     }
 
-    public function top(): ?Sidebar
+    public function top(): ?ClaimState
     {
-        return $this->claims()[0] ?? null;
+        return $this->ordered()[0] ?? null;
     }
 
     public function isEmpty(): bool
@@ -70,45 +61,30 @@ final class SidebarStack
         return $this->claims === [];
     }
 
-    public function release(string $owner): void
+    public function remove(string $owner): void
     {
-        $claim = $this->claims[$owner] ?? null;
-        if ($claim === null) {
-            return;
-        }
         unset($this->claims[$owner]);
-        $claim->markReleased();
-        $this->refresh();
     }
 
     /**
-     * Releases every claim whose owner matches, then refreshes once, so no
-     * intermediate claim flashes on screen.
-     *
      * @param \Closure(string): bool $matches
+     * @return bool whether anything was removed
      */
-    public function releaseWhere(\Closure $matches): void
+    public function removeWhere(\Closure $matches): bool
     {
-        $released = false;
+        $removed = false;
         foreach ($this->claims as $owner => $claim) {
             if ($matches($owner)) {
                 unset($this->claims[$owner]);
-                $claim->markReleased();
-                $released = true;
+                $removed = true;
             }
         }
-        if ($released) {
-            $this->refresh();
-        }
+        return $removed;
     }
 
-    public function releaseAll(): void
+    public function removeAll(): void
     {
-        foreach ($this->claims as $claim) {
-            $claim->markReleased();
-        }
         $this->claims = [];
-        $this->refresh();
     }
 
     /** Brings the client in line with the top claim. */
@@ -119,26 +95,26 @@ final class SidebarStack
             return;
         }
         $top = $this->top();
-        if ($top === null || !$top->isVisible()) {
+        if ($top === null || !$top->visible) {
             $this->removeRendered();
             return;
         }
         $objective = $this->objective;
-        if ($objective === null || $this->rendered !== $top || $this->renderedTitle !== $top->title()) {
+        if ($objective === null || $this->rendered !== $top || $this->renderedTitle !== $top->title) {
             $this->removeRendered();
             $objective = 'nkui.' . Entity::nextRuntimeId();
             $this->send(SetDisplayObjectivePacket::create(
                 SetDisplayObjectivePacket::DISPLAY_SLOT_SIDEBAR,
                 $objective,
-                $top->title(),
+                $top->title,
                 'dummy',
                 SetDisplayObjectivePacket::SORT_ORDER_ASCENDING
             ));
             $this->objective = $objective;
             $this->rendered = $top;
-            $this->renderedTitle = $top->title();
+            $this->renderedTitle = $top->title;
         }
-        $this->syncLines($objective, $top->lines());
+        $this->syncLines($objective, $top->lines);
     }
 
     /** @param list<string> $lines */
