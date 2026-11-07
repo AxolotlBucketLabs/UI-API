@@ -3,13 +3,14 @@
 declare(strict_types=1);
 
 /*
- * Boots a real server with the built plugin and checks it end to end, without a
- * Bedrock client. Everything happens in a fresh temporary data folder.
+ * Boots a real server with nk-ui and checks it end to end, without a Bedrock client.
+ * Everything happens in a fresh temporary folder: the plugin is packaged there from
+ * the working tree as a test fixture only. Release builds come from BedrockNexus.
  *
- *   php scripts/smoke.php <path/to/PocketMine-MP.phar> [--php=<php binary>] [--port=19170]
+ *   php -d phar.readonly=0 scripts/smoke.php <path/to/PocketMine-MP.phar> [--php=<php binary>] [--port=19170]
  *
- * Build first (composer build). For each module setting it starts the server, waits
- * for "Done", runs console commands, stops it and checks the log:
+ * For each module setting it starts the server, waits for "Done", runs console
+ * commands, stops it and checks the log:
  *   - nk-ui enables and logs the configured modules;
  *   - a second plugin that depends on nk-ui gets each enabled module and a
  *     ModuleDisabledException for each disabled one;
@@ -35,9 +36,13 @@ if ($serverPhar === '' || !is_file($serverPhar) || $port < 1 || $port > 65534) {
     fwrite(STDERR, "Usage: php scripts/smoke.php <path/to/PocketMine-MP.phar> [--php=<php>] [--port=<port>]\n");
     exit(2);
 }
-$pluginPhar = $root . '/out/nk-ui.phar';
-if (!is_file($pluginPhar)) {
-    fwrite(STDERR, "Build the plugin first: composer build\n");
+// The server runs inside the temporary data folder, so relative paths would break.
+$serverPhar = (string) realpath($serverPhar);
+if (is_file($php)) {
+    $php = (string) realpath($php);
+}
+if (ini_get('phar.readonly') === '1') {
+    fwrite(STDERR, "Run with php -d phar.readonly=0 to package the test plugins\n");
     exit(2);
 }
 
@@ -46,7 +51,7 @@ $data = $work . '/data';
 $plugins = $work . '/plugins';
 mkdir($data, 0777, true);
 mkdir($plugins, 0777, true);
-copy($pluginPhar, $plugins . '/nk-ui.phar');
+packagePlugin($root, $plugins . '/nk-ui.phar');
 buildConsumer($plugins . '/NkUiSmokeConsumer.phar');
 file_put_contents($data . '/server.properties', implode("\n", [
     'motd=nk-ui smoke test',
@@ -200,6 +205,25 @@ function waitExit($process, int $seconds): bool
         usleep(200_000);
     }
     return false;
+}
+
+/** Packages plugin.yml, src/ and resources/ from the working tree for this test run only. */
+function packagePlugin(string $root, string $path): void
+{
+    $phar = new Phar($path);
+    $phar->startBuffering();
+    $phar->setStub('<?php __HALT_COMPILER();');
+    $phar->addFile($root . '/plugin.yml', 'plugin.yml');
+    foreach (['src', 'resources'] as $dir) {
+        $base = $root . '/' . $dir;
+        $iterator = new RecursiveIteratorIterator(new RecursiveDirectoryIterator($base, FilesystemIterator::SKIP_DOTS));
+        foreach ($iterator as $file) {
+            if ($file instanceof SplFileInfo && $file->isFile()) {
+                $phar->addFile($file->getPathname(), $dir . '/' . str_replace('\\', '/', substr($file->getPathname(), strlen($base) + 1)));
+            }
+        }
+    }
+    $phar->stopBuffering();
 }
 
 /** A plugin that depends on nk-ui and reports which modules it can use. */

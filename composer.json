@@ -35,8 +35,7 @@
 		"check": [
 			"@analyse",
 			"@test"
-		],
-		"build": "@php -d phar.readonly=0 scripts/build.php"
+		]
 	},
 	"config": {
 		"sort-packages": true,

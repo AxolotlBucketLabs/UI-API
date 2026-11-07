@@ -21,12 +21,10 @@ jobs:
           - name: Axolotl-PM 5.51.0
             package: axolotl-pm/pocketmine-mp
             version: 5.51.0
-            repo: axolotl-pm/PocketMine-MP
             phpstan: phpstan.neon.dist
           - name: PocketMine-MP 5.44.3
             package: pocketmine/pocketmine-mp
             version: 5.44.3
-            repo: pmmp/PocketMine-MP
             phpstan: phpstan.pocketmine.neon
     defaults:
       run:
@@ -62,22 +60,3 @@ jobs:
 
       - name: PHPUnit
         run: php vendor/phpunit/phpunit/phpunit
-
-      - name: Build plugin
-        run: php -d phar.readonly=0 scripts/build.php
-
-      - name: Smoke test on a real server
-        env:
-          GH_TOKEN: ${{ github.token }}
-        run: |
-          mkdir -p ../server
-          gh release download "${{ matrix.server.version }}" --repo "${{ matrix.server.repo }}" --pattern PocketMine-MP.phar --dir ../server
-          php -d phar.readonly=0 scripts/smoke.php ../server/PocketMine-MP.phar
-
-      - name: Upload plugin
-        if: matrix.server.package == 'axolotl-pm/pocketmine-mp'
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4
-        with:
-          name: nk-ui
-          path: out/nk-ui.phar
-          if-no-files-found: error

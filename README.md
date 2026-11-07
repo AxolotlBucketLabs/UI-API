@@ -16,16 +16,15 @@ Each module is self-contained (no module uses another) and can be switched off i
 
 | Server | Version | Unit tests + PHPStan | Server boot smoke test | Bedrock client |
 | --- | --- | --- | --- | --- |
-| Axolotl-PM | 5.51.0 | yes | yes | not yet tested |
-| PocketMine-MP | 5.44.3 | yes | yes | not yet tested |
+| Axolotl-PM | 5.51.0 | yes (CI) | yes (local) | not yet tested |
+| PocketMine-MP | 5.44.3 | yes (CI) | yes (local) | not yet tested |
 
 Axolotl-PM and upstream PocketMine-MP encode score entries and boss bar colors differently.
 nk-ui detects the running server and uses the right packet format, so one `nk-ui.phar` works on both.
 
 ## Install
 
-1. Download `nk-ui.phar` from the latest [CI run](https://github.com/ninjaknights/nk-ui-pmmp/actions/workflows/ci.yml)
-   (artifact **nk-ui**), or build it yourself (see [Development](#development)).
+1. Get `nk-ui.phar` from BedrockNexus.
 2. Put it in your server's `plugins/` folder and restart.
 3. In each plugin that uses it, add the dependency to `plugin.yml`:
 
@@ -201,13 +200,13 @@ packets in tests).
 ```sh
 composer install --ignore-platform-req=ext-webrtc   # Axolotl-PM declares ext-webrtc; nk-ui does not use it
 composer check     # PHPStan (level 10, strict rules) and PHPUnit, against Axolotl-PM 5.51.0
-composer build     # out/nk-ui.phar
 php -d phar.readonly=0 scripts/smoke.php path/to/PocketMine-MP.phar
 ```
 
-The smoke test boots a real server in a temporary folder with the built plugin and a small plugin
-that depends on it, and checks module toggles, cross-plugin access, the console command and the
-invalid-config path for each module setting. It does not involve a Bedrock client.
+The smoke test boots a real server in a temporary folder with nk-ui (packaged there from the
+working tree, for the test only) and a small plugin that depends on it. It checks module toggles,
+cross-plugin access, the console command and the invalid-config path for each module setting. It
+does not involve a Bedrock client. Release builds come from BedrockNexus, not from this repository.
 
 To check against upstream PocketMine-MP instead of Axolotl-PM:
 
@@ -219,7 +218,7 @@ vendor/bin/phpstan analyse -c phpstan.pocketmine.neon
 vendor/bin/phpunit
 ```
 
-CI runs all of this on both servers for every push and pull request.
+CI runs PHPStan and PHPUnit on both servers for every push and pull request.
 
 Layout: `src/form`, `src/sidebar` and `src/bossbar` are the modules; each packet format difference
 between the two servers lives in that module's `protocol/` folder. `src/NkUi.php` wires the enabled
