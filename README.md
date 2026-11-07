@@ -19,15 +19,30 @@ on: use the classes you need, and the rest stays idle.
 | Axolotl-PM | 5.51.0 | yes | yes | not yet tested |
 | PocketMine-MP | 5.44.3 | yes | yes | not yet tested |
 
+With DevTools 3.0.0 on Axolotl-PM 5.51.0, three things were checked: loading from `virions/`,
+`/devtools build`, and two built plugins sharing one sidebar from their private copies.
+
 Axolotl-PM and upstream PocketMine-MP encode score entries and boss bar colors differently.
 nk-ui detects the running server and uses the right packet format, so the same code works on both.
 
 ## Install
 
-**As a virion.** `virion.yml` declares the antigen `ninjaknights\ui`. A virion injector shades the
-library into your plugin under your own namespace (for example `myplugin\libs\ninjaknights\ui`),
-so several plugins can bundle different versions without clashing. Add it to your build's virion
-dependencies and import the shaded namespace your injector produces.
+**As a virion with [DevTools](https://github.com/AxolotlBucketLabs/DevTools).** `virion.yml` declares
+the name `nk-ui` and the antigen `ninjaknights\ui`.
+
+1. Put this repository's `virion.yml`, `LICENSE` and `src/` in your server's `virions/nk-ui/`.
+2. Declare it in your plugin's `devtools.yml`:
+
+   ```yaml
+   virions:
+     - name: nk-ui
+       version: ^0.1.0
+   ```
+
+3. Write your plugin against `ninjaknights\ui\...`. While developing, DevTools loads one shared copy
+   of nk-ui for all folder plugins.
+4. `/devtools build MyPlugin` shades nk-ui into `build/MyPlugin.phar` under a private namespace, so
+   every plugin carries its own copy and versions never clash.
 
 **As a Composer library**, for IDE completion, static analysis and Composer-based builds. It is not
 on Packagist yet, so add the repository:
