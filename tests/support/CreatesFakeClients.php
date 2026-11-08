@@ -8,6 +8,7 @@ use pocketmine\form\Form;
 use pocketmine\network\mcpe\NetworkSession;
 use pocketmine\network\mcpe\protocol\ClientboundPacket;
 use pocketmine\player\Player;
+use pocketmine\world\Position;
 use PHPUnit\Framework\TestCase;
 
 /** @phpstan-require-extends TestCase */
@@ -31,9 +32,10 @@ trait CreatesFakeClients
         });
         $player = $this->getMockBuilder(TestPlayer::class)
             ->disableOriginalConstructor()
-            ->onlyMethods(['getNetworkSession', 'isConnected', 'sendForm', 'closeAllForms', 'getName'])
+            ->onlyMethods(['getNetworkSession', 'getPosition', 'isConnected', 'sendForm', 'closeAllForms', 'getName'])
             ->getMock();
         $player->method('getNetworkSession')->willReturn($session);
+        $player->method('getPosition')->willReturn(new Position(0, 0, 0, null));
         $player->method('isConnected')->willReturnCallback(static fn(): bool => $client->connected);
         $player->method('getName')->willReturn('Tester');
         $player->method('sendForm')->willReturnCallback(static function (Form $form) use ($client): void {

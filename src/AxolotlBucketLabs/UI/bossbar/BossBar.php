@@ -5,9 +5,18 @@ declare(strict_types=1);
 namespace AxolotlBucketLabs\UI\bossbar;
 
 use AxolotlBucketLabs\UI\bossbar\protocol\BossBarPackets;
+use pocketmine\entity\Attribute as EntityAttribute;
 use pocketmine\entity\Entity;
+use pocketmine\network\mcpe\protocol\AddActorPacket;
 use pocketmine\network\mcpe\protocol\BossEventPacket;
 use pocketmine\network\mcpe\protocol\ClientboundPacket;
+use pocketmine\network\mcpe\protocol\RemoveActorPacket;
+use pocketmine\network\mcpe\protocol\types\entity\Attribute as NetworkAttribute;
+use pocketmine\network\mcpe\protocol\types\entity\EntityIds;
+use pocketmine\network\mcpe\protocol\types\entity\EntityMetadataCollection;
+use pocketmine\network\mcpe\protocol\types\entity\EntityMetadataFlags;
+use pocketmine\network\mcpe\protocol\types\entity\EntityMetadataProperties;
+use pocketmine\network\mcpe\protocol\types\entity\PropertySyncData;
 use pocketmine\player\Player;
 
 /**
@@ -26,6 +35,7 @@ final class BossBar
     private float $progress = 1.0;
     private BarColor $color = BarColor::PURPLE;
     private BarOverlay $overlay = BarOverlay::PROGRESS;
+    private bool $actorSpawned = false;
 
     /** @internal Use BossBarManager::get(). */
     public function __construct(private Player $player, private string $key, private BossBarPackets $packets)
@@ -89,6 +99,7 @@ final class BossBar
         $this->color = $color ?? $this->color;
         $this->overlay = $overlay ?? $this->overlay;
         $this->visible = true;
+        $this->ensureActorSpawned();
         $this->send($this->packets->show($this->id, $this->title, $this->progress, $this->color, $this->overlay));
     }
 
@@ -140,6 +151,7 @@ final class BossBar
     public function resend(): void
     {
         if ($this->visible && !$this->removed) {
+            $this->ensureActorSpawned();
             $this->send($this->packets->show($this->id, $this->title, $this->progress, $this->color, $this->overlay));
         }
     }
@@ -148,6 +160,10 @@ final class BossBar
     public function markRemoved(): void
     {
         $this->hide();
+        if ($this->actorSpawned) {
+            $this->send(RemoveActorPacket::create($this->id));
+            $this->actorSpawned = false;
+        }
         $this->removed = true;
     }
 
@@ -158,10 +174,50 @@ final class BossBar
         }
     }
 
-    private function send(ClientboundPacket $packet): void
+    private function ensureActorSpawned(): void
     {
-        if ($this->player->isConnected()) {
-            $this->player->getNetworkSession()->sendDataPacket($packet);
+        if (!$this->actorSpawned && $this->send($this->createActorPacket())) {
+            $this->actorSpawned = true;
         }
+    }
+
+    private function createActorPacket(): AddActorPacket
+    {
+        $metadata = new EntityMetadataCollection();
+        $metadata->setGenericFlag(EntityMetadataFlags::FIRE_IMMUNE, true);
+        $metadata->setGenericFlag(EntityMetadataFlags::SILENT, true);
+        $metadata->setGenericFlag(EntityMetadataFlags::INVISIBLE, true);
+        $metadata->setGenericFlag(EntityMetadataFlags::NO_AI, true);
+        $metadata->setString(EntityMetadataProperties::NAMETAG, '');
+        $metadata->setFloat(EntityMetadataProperties::SCALE, 0.0);
+        $metadata->setLong(EntityMetadataProperties::LEAD_HOLDER_EID, -1);
+        $metadata->setFloat(EntityMetadataProperties::BOUNDING_BOX_WIDTH, 0.0);
+        $metadata->setFloat(EntityMetadataProperties::BOUNDING_BOX_HEIGHT, 0.0);
+
+        return AddActorPacket::create(
+            $this->id,
+            $this->id,
+            EntityIds::SLIME,
+            $this->player->getPosition()->asVector3(),
+            null,
+            0.0,
+            0.0,
+            0.0,
+            0.0,
+            [new NetworkAttribute(EntityAttribute::HEALTH, 0.0, 100.0, 100.0)],
+            $metadata->getAll(),
+            new PropertySyncData([], []),
+            [],
+            null
+        );
+    }
+
+    private function send(ClientboundPacket $packet): bool
+    {
+        if (!$this->player->isConnected()) {
+            return false;
+        }
+        $this->player->getNetworkSession()->sendDataPacket($packet);
+        return true;
     }
 }

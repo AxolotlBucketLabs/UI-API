@@ -1,6 +1,6 @@
 # Changelog
 
-## [Unreleased]
+## [0.1.1] - 2026-11-09
 
 ### Added
 
@@ -10,6 +10,15 @@
 
 - Remove the general limitations section from the README.
 - Include the demo source in PHP lint and PHPStan checks.
+
+### Fixed
+
+- Register the hidden bossbar actor before sending bossbar events so clients can display the bar.
+
+### Compatibility
+
+- Axolotl-PM 5.51.0
+- PHP 8.4 or newer
 
 ## [0.1.0] - 2026-11-09
 

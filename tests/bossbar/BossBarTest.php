@@ -15,6 +15,7 @@ use AxolotlBucketLabs\UI\Tests\support\CreatesFakeClients;
 use AxolotlBucketLabs\UI\Tests\support\FakesServer;
 use PHPUnit\Framework\TestCase;
 use pocketmine\event\plugin\PluginDisableEvent;
+use pocketmine\network\mcpe\protocol\AddActorPacket;
 use pocketmine\network\mcpe\protocol\BossEventPacket;
 use pocketmine\plugin\Plugin;
 use pocketmine\network\mcpe\protocol\types\BossBarColor;
@@ -82,6 +83,20 @@ final class BossBarTest extends TestCase
         $bar->hide();
         self::assertSame([], $client->visibleBossBars());
         self::assertFalse($bar->isVisible());
+        self::assertCleanProtocol($client);
+    }
+
+    public function testShowsAClientKnownActorBeforeTheBossBar(): void
+    {
+        $client = $this->fakeClient();
+        $bar = (new BossBarManager($this->plugin()))->get($client->player, 'timer');
+
+        $bar->show('Round');
+
+        self::assertInstanceOf(AddActorPacket::class, $client->packets[0]);
+        self::assertSame($bar->id(), $client->packets[0]->actorRuntimeId);
+        self::assertInstanceOf(BossEventPacket::class, $client->packets[1]);
+        self::assertSame(BossEventPacket::TYPE_SHOW, $client->packets[1]->eventType);
         self::assertCleanProtocol($client);
     }
 

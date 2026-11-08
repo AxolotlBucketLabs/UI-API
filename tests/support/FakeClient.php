@@ -6,9 +6,11 @@ namespace AxolotlBucketLabs\UI\Tests\support;
 
 use pmmp\encoding\ByteBufferWriter;
 use pocketmine\form\Form;
+use pocketmine\network\mcpe\protocol\AddActorPacket;
 use pocketmine\network\mcpe\protocol\BossEventPacket;
 use pocketmine\network\mcpe\protocol\ClientboundPacket;
 use pocketmine\network\mcpe\protocol\DataPacket;
+use pocketmine\network\mcpe\protocol\RemoveActorPacket;
 use pocketmine\network\mcpe\protocol\RemoveObjectivePacket;
 use pocketmine\network\mcpe\protocol\SetDisplayObjectivePacket;
 use pocketmine\network\mcpe\protocol\SetScorePacket;
@@ -41,6 +43,8 @@ final class FakeClient
     private ?string $sidebar = null;
     /** @var array<int, array{title: string, progress: float, visible: bool}> */
     private array $bossBars = [];
+    /** @var array<int, true> */
+    private array $actors = [];
 
     /** @param \Closure(self): Player $player builds the player wired to this client */
     public function __construct(\Closure $player)
@@ -58,7 +62,14 @@ final class FakeClient
         }
         $this->packets[] = $packet;
 
-        if ($packet instanceof SetDisplayObjectivePacket && $packet->displaySlot === SetDisplayObjectivePacket::DISPLAY_SLOT_SIDEBAR) {
+        if ($packet instanceof AddActorPacket) {
+            $this->actors[$packet->actorRuntimeId] = true;
+        } elseif ($packet instanceof RemoveActorPacket) {
+            if (!isset($this->actors[$packet->actorUniqueId])) {
+                $this->errors[] = 'Removed unknown actor ' . $packet->actorUniqueId;
+            }
+            unset($this->actors[$packet->actorUniqueId]);
+        } elseif ($packet instanceof SetDisplayObjectivePacket && $packet->displaySlot === SetDisplayObjectivePacket::DISPLAY_SLOT_SIDEBAR) {
             $this->objectives[$packet->objectiveName] = ['title' => $packet->displayName, 'entries' => []];
             $this->sidebar = $packet->objectiveName;
         } elseif ($packet instanceof RemoveObjectivePacket) {
@@ -158,6 +169,10 @@ final class FakeClient
     private function applyBossEvent(BossEventPacket $packet): void
     {
         $id = $packet->bossActorUniqueId;
+        if (!isset($this->actors[$id])) {
+            $this->errors[] = 'Boss event for unknown actor ' . $id;
+            return;
+        }
         $bar = $this->bossBars[$id] ?? ['title' => '', 'progress' => 0.0, 'visible' => false];
         switch ($packet->eventType) {
             case BossEventPacket::TYPE_SHOW:
