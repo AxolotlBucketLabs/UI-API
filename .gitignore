@@ -12,14 +12,9 @@
 /.phpstan-cache/
 /coverage/
 
-# Personal development files, kept local only
+# Personal development overrides, kept local only
 /phpstan.neon
-/phpstan.neon.dist
-/phpstan.pocketmine.neon
 /phpunit.xml
-/phpunit.xml.dist
-/tests/
-/scripts/
 
 # Editors and OS
 /.idea/

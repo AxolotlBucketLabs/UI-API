@@ -1,0 +1,46 @@
+name: Build and test UI-API
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    defaults:
+      run:
+        shell: bash
+    steps:
+      - name: Check out UI-API
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+
+      - name: Set up Axolotl-PM PHP
+        uses: axolotl-pm/setup-php-action@b8c3f9add4f2ad4a5e2624a1112aba899ee8db0e # 1.0.0
+        with:
+          php-version: '8.4'
+          install-path: ../bin
+          pm-version-major: '5'
+
+      - name: Validate Composer metadata
+        run: composer validate --strict --no-check-lock
+
+      - name: Install dependencies
+        run: composer update --no-interaction --no-progress --prefer-dist --ignore-platform-req=ext-webrtc
+
+      - name: Lint PHP files
+        run: find src tests scripts -name '*.php' -print0 | xargs -0 -n1 php -l
+
+      - name: Run PHPStan
+        run: php vendor/phpstan/phpstan/phpstan analyse -c phpstan.neon.dist --memory-limit=1G --no-progress
+
+      - name: Run PHPUnit
+        run: php vendor/phpunit/phpunit/phpunit

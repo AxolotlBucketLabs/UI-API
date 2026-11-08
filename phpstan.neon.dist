@@ -1,0 +1,17 @@
+# Static analysis against the Axolotl-PM development dependency.
+includes:
+    - vendor/phpstan/phpstan-strict-rules/rules.neon
+
+parameters:
+    level: 10
+    phpVersion:
+        min: 80400
+        max: 80599
+    paths:
+        - src
+        - tests
+    tmpDir: .phpstan-cache
+    treatPhpDocTypesAsCertain: false
+    checkMissingCallableSignature: true
+    checkUninitializedProperties: true
+    reportUnmatchedIgnoredErrors: true

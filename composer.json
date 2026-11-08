@@ -1,17 +1,20 @@
 {
-	"name": "ninjaknights/nk-ui-pmmp",
-	"description": "Virion and Composer library: forms, shared sidebars and boss bars for PocketMine-MP 5 and Axolotl-PM plugins",
+	"name": "axolotlbucketlabs/ui-api",
+	"description": "Virion and Composer library for forms, shared sidebars and boss bars in Axolotl-PM plugins",
 	"type": "library",
 	"license": "GPL-3.0-only",
-	"keywords": ["pocketmine", "pmmp", "axolotl", "virion", "bedrock", "forms", "scoreboard", "sidebar", "bossbar"],
-	"homepage": "https://github.com/ninjaknights/nk-ui-pmmp",
+	"keywords": ["axolotl-pm", "virion", "bedrock", "forms", "scoreboard", "sidebar", "bossbar"],
+	"homepage": "https://github.com/AxolotlBucketLabs/UI-API",
 	"authors": [
+		{
+			"name": "AxolotlBucketLabs"
+		},
 		{
 			"name": "NinjaKnights"
 		}
 	],
 	"require": {
-		"php": "^8.1"
+		"php": "^8.4"
 	},
 	"require-dev": {
 		"axolotl-pm/pocketmine-mp": "5.51.0",
@@ -21,12 +24,12 @@
 	},
 	"autoload": {
 		"psr-4": {
-			"ninjaknights\\ui\\": "src/ninjaknights/ui/"
+			"AxolotlBucketLabs\\UI\\": "src/AxolotlBucketLabs/UI/"
 		}
 	},
 	"autoload-dev": {
 		"psr-4": {
-			"ninjaknights\\ui\\tests\\": "tests/"
+			"AxolotlBucketLabs\\UI\\Tests\\": "tests/"
 		}
 	},
 	"scripts": {
