@@ -1,0 +1,3 @@
+virions:
+  - name: UI-API
+    version: "^0.1.0"

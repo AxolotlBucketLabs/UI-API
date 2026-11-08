@@ -72,6 +72,9 @@ The Composer package is hosted in this repository and is not on Packagist yet.
 The server API is provided by Axolotl-PM at runtime. It is not bundled as a
 Composer dependency.
 
+See [`examples/UIApiDemo`](examples/UIApiDemo) for a small runnable plugin that
+uses the forms, sidebar and boss bar APIs.
+
 ## Usage
 
 Create the managers in your plugin's `onEnable()` method.
@@ -200,12 +203,6 @@ consumer plugins on a local server.
 ```sh
 php -d phar.readonly=0 scripts/smoke.php path/to/Axolotl-PM.phar
 ```
-
-## Known limits
-
-- Bedrock client rendering has not been tested in an actual client.
-- The project supports Axolotl-PM only.
-- The current version does not provide a standalone plugin PHAR.
 
 ## License
 

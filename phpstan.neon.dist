@@ -10,6 +10,7 @@ parameters:
     paths:
         - src
         - tests
+        - examples/UIApiDemo/src
     tmpDir: .phpstan-cache
     treatPhpDocTypesAsCertain: false
     checkMissingCallableSignature: true

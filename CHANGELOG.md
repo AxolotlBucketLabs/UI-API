@@ -2,6 +2,15 @@
 
 ## [Unreleased]
 
+### Added
+
+- Add the `UIApiDemo` plugin under `examples/`.
+
+### Changed
+
+- Remove the general limitations section from the README.
+- Include the demo source in PHP lint and PHPStan checks.
+
 ## [0.1.0] - 2026-11-09
 
 ### Changed

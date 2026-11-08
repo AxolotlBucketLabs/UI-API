@@ -1,0 +1,16 @@
+name: UIApiDemo
+main: AxolotlBucketLabs\UIApiDemo\Main
+src-namespace-prefix: AxolotlBucketLabs\UIApiDemo
+version: 1.0.0
+api: 5.0.0
+author: AxolotlBucketLabs
+description: Demonstrates the UI-API forms, sidebar and boss bar APIs
+commands:
+  ui:
+    description: Opens the UI-API demo menu
+    usage: "/ui"
+    permission: uiapidemo.command
+permissions:
+  uiapidemo.command:
+    default: true
+    description: Allows the use of the UI-API demo command
