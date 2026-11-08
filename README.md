@@ -64,7 +64,7 @@ The Composer package is hosted in this repository and is not on Packagist yet.
         }
     ],
     "require": {
-        "axolotlbucketlabs/ui-api": "dev-main"
+        "axolotlbucketlabs/ui-api": "^0.1"
     }
 }
 ```
@@ -174,7 +174,7 @@ This release uses a new package, virion name and PHP namespace.
 Update the Composer dependency:
 
 ```json
-"axolotlbucketlabs/ui-api": "dev-main"
+"axolotlbucketlabs/ui-api": "^0.1"
 ```
 
 Use `UI-API` in `devtools.yml` and update imports to
